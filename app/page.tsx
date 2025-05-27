@@ -72,10 +72,9 @@ export default function Home() {
           </p>
           <h2 className="text-3xl font-bold mb-4">Perk!</h2>
           <p className="text-gray-300 max-w-4xl">
-            주어진 직무를 창의적으로 수행할 수 있습니다.<br />
-            최신 기술에 관심이 많고, 트렌디한 방법을 추구합니다.<br />
-            책임감이 강하여 금전적인 이득이 보장이 되지 않은 상황에서도 맡은 바 최선을 다합니다.<br />
-            영어에 능통하여, 외국인 고객을 대하는 데에 거리낌이 없습니다.<br />
+            창의성!<br />
+            여유있는 책임감!<br />
+            영어 능통!<br />
             <br />
             <br />
             <br />
@@ -145,14 +144,14 @@ export default function Home() {
           <h2 className="text-3xl font-bold mb-4">Freediving</h2>
           <p className="text-gray-300 max-w-4xl mb-6">
             2022년 경 자신의 한계에 도전하는 스포츠, 프리다이빙에 입문하게 되어,<br />
-            SNSI Indoor Freediver<br />
+            SNSI Indoor Freediver,<br />
             SNSI Freediver,<br />
             SNSI Advanced Freediver,<br />
             SNSI Deep Freediver 를 순차적으로 취득함.<br />
             이후 Freediver Instructor,<br />
             Advanced Freediver Instructor<br />
             강사 자격을 취득하였으며<br />
-            프리다이빙 센터 Onedive 의 소속 강사로 활동하며 150명 이상의 한국인 및 외국인 다이버를 배출함.<br />
+            프리다이빙 센터 Onedive 의 소속 강사로 활동하며<br />150명 이상의 한국인 및 외국인 다이버를 배출함.<br />
             BLSD First Aid,<br />EFR Life Savior 등 인명 구조 관련 자격,<br />CMAS 국제핀수영협회 심판관 자격 또한 보유.
             <br />
             <br />
