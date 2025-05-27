@@ -110,7 +110,7 @@ export default function Home() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-5">
             {["CryptoHunter", "안동장씨 남해 종친회", "Auto Piano", "AI Localization PJ", "Trafficjam2", "애벌레노트", "촉각전달기", "KakaoTalt","Supports"].map((title, idx) => {
               const descriptions = [
-                "실시간 데이터 수집, GPT 전략 판단, 실제 자동 주문 실행까지 연동한 시스템. 로그 기록 및 리스크 관리 기능 포함. 결론부터 말하자면, 부자가 되진 못했다.",
+                "실시간 데이터 수집, GPT 전략 판단, 실제 자동 주문 실행까지 연동한 시스템. 로그 기록 및 리스크 관리 기능 포함. 넓게 보면 소규모의 AI 에이전트 이다.",
                 "남해의 안동 장씨 계보도를 재귀함수와 NONSQL-DB, 그리고 NodeJS 를 이용해 한눈에 볼 수 있도록 설계한 온라인 족보 프로그램. 족보를 트리 형태로 구현한 최초의 웹앱",
                 "ArtMega Microprocessor 와 C언어를 이용해 만든 반응속도 높은 피아노. 컴퓨터와 연결하면 Putty 입력을 통해 키보드로 연주 가능.",
                 "ollama 와 Deepseek 오픈소스, 그리고 RTX 4080 SUPER GPU로 Deepseek 8b/14b를 로컬로 구현.",
@@ -145,10 +145,15 @@ export default function Home() {
           <h2 className="text-3xl font-bold mb-4">Freediving</h2>
           <p className="text-gray-300 max-w-4xl mb-6">
             2022년 경 자신의 한계에 도전하는 스포츠, 프리다이빙에 입문하게 되어,<br />
-            SNSI Indoor Freediver, Freediver, Advanced Freediver, Deep Freediver 를 순차적으로 취득함.<br />
-            이후 Freediver Instructor, Advanced Freediver Instructor 강사 자격을 취득하였으며<br />
-            프리다이빙 센터 Onedive 의 소속 강사로 활동하며 100명 이상의 한국인 및 외국인 수강생에게 자격을 부여함.<br />
-            BLSD First Aid, EFR Life Savior 등 인명 구조 관련 자격 / CMAS 국제핀수영협회 심판관 자격 또한 보유.
+            SNSI Indoor Freediver<br />
+            SNSI Freediver,<br />
+            SNSI Advanced Freediver,<br />
+            SNSI Deep Freediver 를 순차적으로 취득함.<br />
+            이후 Freediver Instructor,<br />
+            Advanced Freediver Instructor<br />
+            강사 자격을 취득하였으며<br />
+            프리다이빙 센터 Onedive 의 소속 강사로 활동하며 150명 이상의 한국인 및 외국인 다이버를 배출함.<br />
+            BLSD First Aid,<br />EFR Life Savior 등 인명 구조 관련 자격,<br />CMAS 국제핀수영협회 심판관 자격 또한 보유.
             <br />
             <br />
             <br />
