@@ -8,7 +8,7 @@ export default function ContactFooter() {
   };
 
   return (
-    <div className="bg-black py-6 px-4">
+    <div className="py-6 px-4 relative z-10">
       <hr className="border-gray-600" />
       <div className="text-center py-6">
         <h2 className="text-xl font-bold text-white">Contact</h2>

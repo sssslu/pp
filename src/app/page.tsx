@@ -9,6 +9,7 @@ import PerkSection from "@/components/PerkSection";
 import ProjectsSection from "@/components/ProjectsSection";
 import ContactFooter from "@/components/ContactFooter";
 import { motion, AnimatePresence } from "framer-motion";
+import FloatingBubbles from "@/components/FloatingBubbles";
 
 const TABS = ["저는...", "능력치!", "프로젝트", "취미", "갤러리"];
 
@@ -72,9 +73,22 @@ export default function Home() {
       transition={{ duration: 0.8 }}
       className="bg-[#0a0a0a] min-h-screen text-white"
     >
+      <FloatingBubbles />
       <main>
-        {!isGalleryTab && <HeroSection />}
-        <div className="sticky top-0 z-10 bg-black h-12 flex justify-evenly items-center">
+        <AnimatePresence initial={false}>
+          {!isGalleryTab && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.5 }}
+              className="overflow-hidden"
+            >
+              <HeroSection />
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <div className="sticky top-0 z-10 bg-transparent h-12 flex justify-evenly items-center">
           {TABS.map((label, index) => {
             const isSelected = selectedIndex === index;
             return (
@@ -107,7 +121,7 @@ export default function Home() {
             animate="in"
             exit="out"
             transition={{ duration: 0.5, ease: "easeInOut" }}
-            className="bg-black w-full"
+            className="w-full relative z-10"
           >
             {pages[selectedIndex]}
           </motion.div>
@@ -115,7 +129,7 @@ export default function Home() {
 
         {!isGalleryTab && <ContactFooter />}
         {!isGalleryTab && viewCount !== -1 && (
-          <div className="w-full bg-black py-4 text-center">
+          <div className="w-full bg-transparent py-4 text-center relative z-10">
             <p className="text-gray-400 text-sm">Total {viewCount} views</p>
           </div>
         )}
