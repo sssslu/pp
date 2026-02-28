@@ -73,8 +73,8 @@ function Bubble({ data, mousePos }: { data: BubbleData; mousePos: React.MutableR
       const dy = currentY - my;
       const dist = Math.sqrt(dx * dx + dy * dy);
 
-      const repulsionRadius = 300; // 반응 반경 (이 거리 안에 들어오면 도망감)
-      const maxRepulsion = 400; // 최대 도망 거리
+      const repulsionRadius = 500; // 반응 반경 (이 거리 안에 들어오면 도망감)
+      const maxRepulsion = 1000; // 최대 도망 거리
 
       let targetAvoidX = 0;
       let targetAvoidY = 0;
@@ -91,7 +91,7 @@ function Bubble({ data, mousePos }: { data: BubbleData; mousePos: React.MutableR
 
       // 부드러운 움직임을 위한 선형 보간 (Lerp)
       // 목표 위치로 서서히 이동 (0.08은 반응 속도 계수)
-      const lerpFactor = 0.08;
+      const lerpFactor = 0.1;
       state.current.avoidX += (targetAvoidX - state.current.avoidX) * lerpFactor;
       state.current.avoidY += (targetAvoidY - state.current.avoidY) * lerpFactor;
 
@@ -111,7 +111,7 @@ function Bubble({ data, mousePos }: { data: BubbleData; mousePos: React.MutableR
   return (
     <div
       ref={elementRef}
-      className="absolute rounded-full opacity-60 blur-3xl"
+      className="absolute rounded-full opacity-40 blur-3xl"
       style={{
         width: data.size,
         height: data.size,
@@ -145,7 +145,7 @@ export default function FloatingBubbles() {
 
     // 버블 초기화
     // 클라이언트 사이드에서만 랜덤 값 생성 (Hydration mismatch 방지)
-    const newBubbles = Array.from({ length: 30 }).map((_, i) => ({
+    const newBubbles = Array.from({ length: 40 }).map((_, i) => ({
       id: i,
       size: Math.random() * 150 + 50,
       initialX: Math.random() * 100,

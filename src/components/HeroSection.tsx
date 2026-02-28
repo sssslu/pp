@@ -6,7 +6,7 @@ export default function HeroSection() {
           Profile : 박 슬우
         </h1>
         <p className="mt-6 text-base text-gray-300 leading-relaxed">
-          강력한 인간입니다<br />
+          주의 : 이사람은 심심합니다!<br />
         </p>
       </div>
     </section>

@@ -88,7 +88,7 @@ export default function Home() {
             </motion.div>
           )}
         </AnimatePresence>
-        <div className="sticky top-0 z-10 bg-transparent h-12 flex justify-evenly items-center">
+        <div className="sticky top-0 z-20 bg-transparent backdrop-blur-sm h-12 flex justify-evenly items-center">
           {TABS.map((label, index) => {
             const isSelected = selectedIndex === index;
             return (
@@ -122,6 +122,10 @@ export default function Home() {
             exit="out"
             transition={{ duration: 0.5, ease: "easeInOut" }}
             className="w-full relative z-10"
+            style={{
+              maskImage: "linear-gradient(to bottom, transparent 0px, black 80px)",
+              WebkitMaskImage: "linear-gradient(to bottom, transparent 0px, black 80px)",
+            }}
           >
             {pages[selectedIndex]}
           </motion.div>
