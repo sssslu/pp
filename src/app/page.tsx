@@ -29,7 +29,7 @@ export default function Home() {
         } else {
           setViewCount(0);
         }
-      } catch (error: any) {
+      } catch (error) {
         if (error.name !== "AbortError") {
           console.error("Failed to fetch view count:", error);
           setViewCount(0);
