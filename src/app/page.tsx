@@ -122,10 +122,14 @@ export default function Home() {
             exit="out"
             transition={{ duration: 0.5, ease: "easeInOut" }}
             className="w-full relative z-10"
-            style={{
-              maskImage: "linear-gradient(to bottom, transparent 0px, black 30px)",
-              WebkitMaskImage: "linear-gradient(to bottom, transparent 0px, black 30px)",
-            }}
+            style={
+              isGalleryTab
+                ? undefined
+                : {
+                    maskImage: "linear-gradient(to bottom, transparent 0px, black 30px)",
+                    WebkitMaskImage: "linear-gradient(to bottom, transparent 0px, black 30px)",
+                  }
+            }
           >
             {pages[selectedIndex]}
           </motion.div>
