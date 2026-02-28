@@ -123,8 +123,8 @@ export default function Home() {
             transition={{ duration: 0.5, ease: "easeInOut" }}
             className="w-full relative z-10"
             style={{
-              maskImage: "linear-gradient(to bottom, transparent 0px, black 80px)",
-              WebkitMaskImage: "linear-gradient(to bottom, transparent 0px, black 80px)",
+              maskImage: "linear-gradient(to bottom, transparent 0px, black 30px)",
+              WebkitMaskImage: "linear-gradient(to bottom, transparent 0px, black 30px)",
             }}
           >
             {pages[selectedIndex]}
