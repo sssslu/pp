@@ -68,11 +68,11 @@ export default function AboutSection() {
             </RevealGroup>
             <RevealGroup>
               <p>
-                - <RedactedItem text="싱가폴 암호화폐 거래소 Bitget" /> 에서 <RedactedItem text="중요직" />으로 근무
+                - <RedactedItem text="싱가폴 암호화폐 거래소 Bitget" /> 에서 <RedactedItem text="커미션직" />으로 근무
               </p>
             </RevealGroup>
             <p className="mt-4">
-              현재 속세를 떠나 특이점을 기다리는, 방구석 연구자이자 코더로 활동중입니다.
+              특이점을 하염없이 기다리는 사람입니다.
             </p>
           </div>
         </div>

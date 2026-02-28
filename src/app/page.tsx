@@ -11,7 +11,7 @@ import ContactFooter from "@/components/ContactFooter";
 import { motion, AnimatePresence } from "framer-motion";
 import FloatingBubbles from "@/components/FloatingBubbles";
 
-const TABS = ["저는...", "능력치!", "프로젝트", "취미", "갤러리"];
+const TABS = ["소개", "능력치!", "프로젝트", "취미", "갤러리"];
 
 export default function Home() {
   const [selectedIndex, setSelectedIndex] = useState(0);
