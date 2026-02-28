@@ -17,21 +17,27 @@ export default function Home() {
   const [viewCount, setViewCount] = useState(-1);
 
   useEffect(() => {
+    const controller = new AbortController();
     const fetchViewCount = async () => {
       try {
-        const res = await fetch("https://slusphere.fly.dev/viewcount/1");
+        const res = await fetch("https://slusphere.fly.dev/viewcount/1", {
+          signal: controller.signal,
+        });
         if (res.ok) {
           const data = await res.json();
           setViewCount(data.viewCount);
         } else {
           setViewCount(0);
         }
-      } catch (error) {
-        console.error("Failed to fetch view count:", error);
-        setViewCount(0);
+      } catch (error: any) {
+        if (error.name !== "AbortError") {
+          console.error("Failed to fetch view count:", error);
+          setViewCount(0);
+        }
       }
     };
     fetchViewCount();
+    return () => controller.abort();
   }, []);
 
   const pages = [
