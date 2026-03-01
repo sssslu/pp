@@ -63,8 +63,8 @@ const galleryItems = [
     { url: "https://i.imgur.com/ikvtDQr.png", description: "오픽", category: "증명서" },
 
     // Meta
-    { url: "https://i.imgur.com/6koByeg.png", description: "해당 포트폴리오 페이지는 FLUTTER 웹앱 입니다! 20260301 수정 - 이제 플러터 아닙니다:)", category: "기타" },
-    { url: "https://i.imgur.com/iw7lXVi.png", description: "처음부터 끝까지 레퍼런스없이 직접 제작하였습니다! 20260301 수정 - 이제 AI 떡칠입니다:)", category: "기타" },
+    { url: "https://i.imgur.com/6koByeg.png", description: "해당 포트폴리오 페이지는 FLUTTER 웹앱 입니다! 20260301 수정 - 이제 플러터 아닙니다", category: "기타" },
+    { url: "https://i.imgur.com/iw7lXVi.png", description: "처음부터 끝까지 레퍼런스없이 직접 제작하였습니다! 20260301 수정 - 이제 AI 떡칠입니다", category: "기타" },
 ];
 
 const categories = [...new Set(galleryItems.map(item => item.category))];
@@ -125,7 +125,7 @@ function GalleryImageItem({ item, onClick, variants }: { item: any, onClick: () 
 
 export default function GallerySection() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedItem, setSelectedItem] = useState<{ url: string, description: string } | null>(null);
 
   const itemsToShow = selectedCategory
     ? galleryItems.filter(item => item.category === selectedCategory)
@@ -157,18 +157,21 @@ export default function GallerySection() {
             <GalleryImageItem
               key={item.url}
               item={item}
-              onClick={() => setSelectedImage(item.url)}
+              onClick={() => setSelectedItem(item)}
               variants={itemVariants}
             />
           ))}
         </motion.div>
-        {selectedImage && (
+        {selectedItem && (
           <div
-            className="fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center"
-            onClick={() => setSelectedImage(null)}
+            className="fixed inset-0 bg-black bg-opacity-90 z-50 flex flex-col items-center justify-center p-4"
+            onClick={() => setSelectedItem(null)}
           >
-            <div className="relative max-w-4xl max-h-full">
-              <img src={selectedImage} alt="Full screen" className="max-w-full max-h-[90vh]" />
+            <div className="relative max-w-5xl w-full h-[75vh] flex items-center justify-center">
+              <img src={selectedItem.url} alt={selectedItem.description} className="max-w-full max-h-full object-contain" />
+            </div>
+            <div className="mt-6 max-w-3xl text-center" onClick={(e) => e.stopPropagation()}>
+              <p className="text-white text-lg font-medium bg-gray-900/80 px-6 py-3 rounded-xl backdrop-blur-sm border border-gray-700">{selectedItem.description}</p>
             </div>
           </div>
         )}
