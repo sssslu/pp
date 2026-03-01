@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   title: "Slu Park's Portfolio",
   description: "Personal portfolio of Slu Park",
   icons: {
-    icon: "/favicon.png",
+    icon: "/images/favicon.png",
   },
   openGraph: {
     title: "Slu Park's Portfolio",
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
     url: "https://slupark.com",
     images: [
       {
-        url: "https://slupark.com/front.png",
+        url: "https://slupark.com/images/front.png",
         width: 1200,
         height: 630,
       },

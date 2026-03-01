@@ -95,7 +95,7 @@ export default function AboutSection() {
                   className="relative ml-24 mb-12 transform hover:scale-105 transition-all duration-300 border-4 border-white rounded-lg shadow-2xl overflow-hidden block"
                 >
                   {/* 확장자가 png가 아니라면 아래 경로를 수정해주세요 (예: /인프런인증.jpg) */}
-                  <Image src="/인프런인증.png" alt="인프런 인증" width={300} height={200} className="object-cover" />
+                  <Image src="/images/인프런인증.png" alt="인프런 인증" width={300} height={200} className="object-cover" />
                 </a>
               </div>
               </div>
@@ -135,7 +135,7 @@ export default function AboutSection() {
                     rel="noopener noreferrer"
                     className="relative ml-2 transform hover:scale-105 transition-all duration-300 border-4 border-white rounded-lg shadow-2xl overflow-hidden block"
                   >
-                    <Image src="/과학쪼가리.png" alt="과학 유투버" width={100} height={75} className="object-cover" />
+                    <Image src="/images/과학쪼가리.png" alt="과학 유투버" width={100} height={75} className="object-cover" />
                   </a>
                 </div>
               </div>
