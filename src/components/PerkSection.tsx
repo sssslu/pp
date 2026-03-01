@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { motion } from "framer-motion";
+import { motion, Variants } from "framer-motion";
 
 const SKILLS = [
   "C", "C#", "Java", "Dart", "React", "Flutter",
@@ -23,7 +23,7 @@ export default function PerkSection() {
     }));
   }, []);
 
-  const itemVariants = {
+  const itemVariants: Variants = {
     hidden: { opacity: 1, x: 0, y: 0, rotate: 0, scale: 1, filter: "blur(0px)" },
     visible: (custom: any) => ({
       opacity: [1, 1, 0],

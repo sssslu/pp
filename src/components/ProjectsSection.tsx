@@ -58,7 +58,7 @@ const projects = [
   },
   {
     title: "PP",
-    description: "Project Portfolio. 지금 보고 계신 플러터 기반의 정적 웹 서비스 입니다 ^^",
+    description: "Project Portfolio. 지금 보고 계신 플러터 기반의 정적 웹 서비스 입니다 ^^ - 20260301수정 : 이젠 아닙니다.",
   },
 ];
 
