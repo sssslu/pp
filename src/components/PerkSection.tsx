@@ -23,6 +23,23 @@ export default function PerkSection() {
     }));
   }, []);
 
+  const itemVariants = {
+    hidden: { opacity: 1, x: 0, y: 0, rotate: 0, scale: 1, filter: "blur(0px)" },
+    visible: (custom: any) => ({
+      opacity: [1, 1, 0],
+      scale: [1, 1, 0],
+      filter: ["blur(0px)", "blur(0px)", "blur(4px)"],
+      x: [0, 2, -2, 2, -2, 1, -1, 0, custom.x],
+      y: [0, 1, -1, 1, -1, 0, 0, 0, custom.y],
+      rotate: [0, 0, 0, 0, 0, 0, 0, 0, custom.rotate],
+      transition: {
+        duration: 3, // 전체 애니메이션 시간 (초). 이 값을 늘리면 진동 시간도 길어집니다.
+        times: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 1], // 0 ~ 0.7 구간이 진동, 0.7 ~ 1 구간이 폭발
+        ease: "easeInOut"
+      }
+    })
+  };
+
   return (
     <div className="w-full">
       <div className="max-w-3xl mx-auto px-8 py-4">
@@ -40,7 +57,7 @@ export default function PerkSection() {
           onTouchStart={() => setIsRevealed(true)}
           onClick={() => setIsRevealed(true)}
         >
-          <h2 className="text-xl font-bold text-white mb-4 transition-colors duration-300 group-hover:text-yellow-400">스택</h2>
+          <h2 className="text-xl font-bold text-white mb-4 transition-colors duration-300">스택</h2>
           
           {/* 스킬 목록 컨테이너 */}
           <div className="relative min-h-[400px]">
@@ -48,23 +65,10 @@ export default function PerkSection() {
               <motion.div
                 key={skill}
                 className="text-gray-300 text-lg font-medium origin-center mb-1"
-                initial={{ opacity: 1, x: 0, y: 0, rotate: 0, scale: 1, filter: "blur(0px)" }}
-                animate={isRevealed ? {
-                  opacity: 0,
-                  x: explosionEffects[index].x,
-                  y: explosionEffects[index].y,
-                  rotate: explosionEffects[index].rotate,
-                  scale: 0, // 작아지면서 사라짐 (픽셀화 느낌)
-                  filter: "blur(4px)" // 블러 처리로 가루가 되는 느낌
-                } : {
-                  opacity: 1,
-                  x: 0,
-                  y: 0,
-                  rotate: 0,
-                  scale: 1,
-                  filter: "blur(0px)"
-                }}
-                transition={{ duration: 0.8, ease: "circOut" }}
+                custom={explosionEffects[index]}
+                variants={itemVariants}
+                initial="hidden"
+                animate={isRevealed ? "visible" : "hidden"}
               >
                 {skill}
               </motion.div>
@@ -87,7 +91,7 @@ export default function PerkSection() {
                 type: "spring", 
                 stiffness: 200, 
                 damping: 15, 
-                delay: 0.1 
+                delay: 1.0 
               }}
             >
               <p className="text-yellow-400 font-bold text-9xl drop-shadow-[0_0_30px_rgba(250,204,21,0.6)]">
