@@ -10,6 +10,11 @@ export const metadata: Metadata = {
   icons: {
     icon: "/favicon.png",
   },
+  openGraph: {
+    title: "Slu Park's Portfolio",
+    description: "Personal portfolio of Slu Park",
+    images: "/front.png",
+  },
 };
 
 export default function RootLayout({
