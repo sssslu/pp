@@ -63,8 +63,8 @@ const galleryItems = [
     { url: "https://i.imgur.com/ikvtDQr.png", description: "오픽", category: "증명서" },
 
     // Meta
-    { url: "https://i.imgur.com/6koByeg.png", description: "해당 포트폴리오 페이지는 FLUTTER 웹앱 입니다! :)", category: "기타" },
-    { url: "https://i.imgur.com/iw7lXVi.png", description: "처음부터 끝까지 레퍼런스없이 직접 제작하였습니다! :)", category: "기타" },
+    { url: "https://i.imgur.com/6koByeg.png", description: "해당 포트폴리오 페이지는 FLUTTER 웹앱 입니다! 20260301 수정 - 이제 플러터 아닙니다:)", category: "기타" },
+    { url: "https://i.imgur.com/iw7lXVi.png", description: "처음부터 끝까지 레퍼런스없이 직접 제작하였습니다! 20260301 수정 - 이제 AI 떡칠입니다:)", category: "기타" },
 ];
 
 const categories = [...new Set(galleryItems.map(item => item.category))];

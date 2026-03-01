@@ -1,9 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { motion } from "framer-motion";
+
+const SKILLS = [
+  "C", "C#", "Java", "Dart", "React", "Flutter",
+  "Next.js", "Python", "Node.js", "JavaScript",
+  "TypeScript", "Firebase Auth", "DB의 SQL 및 CRUD"
+];
 
 export default function PerkSection() {
   const [isRevealed, setIsRevealed] = useState(false);
+
+  // 각 스킬 아이템별로 폭발/붕괴 효과를 위한 랜덤 값을 생성합니다.
+  // useMemo를 사용하여 리렌더링 시에도 애니메이션 방향이 바뀌지 않도록 합니다.
+  const explosionEffects = useMemo(() => {
+    return SKILLS.map(() => ({
+      x: (Math.random() - 0.5) * 500, // 좌우로 넓게 퍼짐
+      y: (Math.random() * 300) + 50,  // 아래로 무너져 내림 (중력 느낌)
+      rotate: (Math.random() - 0.5) * 180, // 랜덤 회전
+      scale: 0.5 + Math.random() * 0.5, // 크기 변화
+    }));
+  }, []);
 
   return (
     <div className="w-full">
@@ -16,27 +34,67 @@ export default function PerkSection() {
             <br />- 능통한 영어
           </p>
         </div>
-        <div className="py-6 cursor-pointer" onClick={() => setIsRevealed(true)}>
-          <h2 className="text-xl font-bold text-white">스택</h2>
-          <p
-            className={`mt-2 whitespace-pre-line transition-all duration-500 ${
-              isRevealed ? "text-gray-500 line-through decoration-gray-500" : "text-gray-300"
-            }`}
-          >
-            C<br />C#<br />Java<br />Dart<br />React<br />Flutter
-            <br />Next.js
-            <br />Python
-            <br />Node.js
-            <br />JavaScript
-            <br />TypeScript
-            <br />Firebase Auth
-            <br />DB의 SQL 및 CRUD
-          </p>
-          {isRevealed && (
-            <p className="mt-2 text-yellow-400 font-bold text-3xl">
-              AI
-            </p>
-          )}
+        <div 
+          className="py-6 cursor-pointer relative group"
+          onMouseEnter={() => setIsRevealed(true)}
+          onTouchStart={() => setIsRevealed(true)}
+          onClick={() => setIsRevealed(true)}
+        >
+          <h2 className="text-xl font-bold text-white mb-4 transition-colors duration-300 group-hover:text-yellow-400">스택</h2>
+          
+          {/* 스킬 목록 컨테이너 */}
+          <div className="relative min-h-[400px]">
+            {SKILLS.map((skill, index) => (
+              <motion.div
+                key={skill}
+                className="text-gray-300 text-lg font-medium origin-center mb-1"
+                initial={{ opacity: 1, x: 0, y: 0, rotate: 0, scale: 1, filter: "blur(0px)" }}
+                animate={isRevealed ? {
+                  opacity: 0,
+                  x: explosionEffects[index].x,
+                  y: explosionEffects[index].y,
+                  rotate: explosionEffects[index].rotate,
+                  scale: 0, // 작아지면서 사라짐 (픽셀화 느낌)
+                  filter: "blur(4px)" // 블러 처리로 가루가 되는 느낌
+                } : {
+                  opacity: 1,
+                  x: 0,
+                  y: 0,
+                  rotate: 0,
+                  scale: 1,
+                  filter: "blur(0px)"
+                }}
+                transition={{ duration: 0.8, ease: "circOut" }}
+              >
+                {skill}
+              </motion.div>
+            ))}
+
+            {/* AI 텍스트 등장 효과 */}
+            <motion.div
+              className="absolute inset-0 flex items-center justify-center pointer-events-none"
+              initial={{ opacity: 0, scale: 0.5, filter: "blur(10px)" }}
+              animate={isRevealed ? { 
+                opacity: 1, 
+                scale: 1, 
+                filter: "blur(0px)" 
+              } : { 
+                opacity: 0, 
+                scale: 0.5, 
+                filter: "blur(10px)" 
+              }}
+              transition={{ 
+                type: "spring", 
+                stiffness: 200, 
+                damping: 15, 
+                delay: 0.1 
+              }}
+            >
+              <p className="text-yellow-400 font-bold text-9xl drop-shadow-[0_0_30px_rgba(250,204,21,0.6)]">
+                AI
+              </p>
+            </motion.div>
+          </div>
         </div>
       </div>
     </div>

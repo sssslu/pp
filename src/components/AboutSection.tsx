@@ -39,6 +39,31 @@ function RedactedItem({ text }: { text: string }) {
   );
 }
 
+function RedactedImage({ src, alt, width, height, className }: { src: string, alt: string, width: number, height: number, className?: string }) {
+  const context = useContext(RevealContext);
+  const [localIsRevealed, setLocalIsRevealed] = useState(false);
+
+  const isRevealed = context ? context.isRevealed : localIsRevealed;
+  const reveal = context ? context.reveal : () => setLocalIsRevealed(true);
+
+  return (
+    <div className="relative" onClick={(e) => {
+      if (!isRevealed) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (reveal) reveal();
+      }
+    }}>
+      <Image src={src} alt={alt} width={width} height={height} className={className} />
+      <div
+        className={`absolute inset-0 bg-black transition-opacity duration-500 ${
+          isRevealed ? "opacity-0 pointer-events-none" : "opacity-100 cursor-pointer hover:bg-gray-900"
+        }`}
+      />
+    </div>
+  );
+}
+
 export default function AboutSection() {
   return (
     <div className="w-full">
@@ -50,8 +75,6 @@ export default function AboutSection() {
               <p>
                 - <RedactedItem text="창원남고등학교" /> 졸업 / <RedactedItem text="창원남고 단결정 연구 동아리" /> 활동 및 다회 수상
               </p>
-            </RevealGroup>
-            <RevealGroup>
               <p>
                 - <RedactedItem text="서울과학기술대학교" /> <RedactedItem text="전자IT미디어공학과" /> 졸업
               </p>
@@ -65,15 +88,10 @@ export default function AboutSection() {
               <p>
                 - <RedactedItem text="태화이노베이션" /> <RedactedItem text="R&D 소프트웨어 연구소" /> 연구원
               </p>
-            </RevealGroup>
-            <RevealGroup>
               <p>
                 - <RedactedItem text="싱가폴 암호화폐 거래소 Bitget" /> 에서 <RedactedItem text="커미션직" />으로 근무
               </p>
             </RevealGroup>
-            <p className="mt-4">
-              특이점을 하염없이 기다리는 사람입니다.
-            </p>
           </div>
         </div>
         <div className="py-6">
@@ -95,7 +113,7 @@ export default function AboutSection() {
                   className="relative ml-24 mb-12 transform hover:scale-105 transition-all duration-300 border-4 border-white rounded-lg shadow-2xl overflow-hidden block"
                 >
                   {/* 확장자가 png가 아니라면 아래 경로를 수정해주세요 (예: /인프런인증.jpg) */}
-                  <Image src="/images/인프런인증.png" alt="인프런 인증" width={300} height={200} className="object-cover" />
+                  <RedactedImage src="/images/인프런인증.png" alt="인프런 인증" width={300} height={200} className="object-cover" />
                 </a>
               </div>
               </div>
@@ -109,8 +127,6 @@ export default function AboutSection() {
               <p>
                 - <RedactedItem text="우리은행" /> 사서 프로그램 <RedactedItem text="Fever" /> 와 <RedactedItem text="농협은행" /> 고속 스캔 프로그램 <RedactedItem text="DASS" /> 를 유지보수한 경험이 있습니다.
               </p>
-            </RevealGroup>
-            <RevealGroup>
               <p>
                 - <RedactedItem text="한국의 개발 관련 연구소" />에서 여러가지 <RedactedItem text="실험적인 프로젝트" />에서 활동한 경험이 있습니다.
               </p>
@@ -135,7 +151,7 @@ export default function AboutSection() {
                     rel="noopener noreferrer"
                     className="relative ml-2 transform hover:scale-105 transition-all duration-300 border-4 border-white rounded-lg shadow-2xl overflow-hidden block"
                   >
-                    <Image src="/images/과학쪼가리.png" alt="과학 유투버" width={100} height={75} className="object-cover" />
+                    <RedactedImage src="/images/과학쪼가리.png" alt="과학 유투버" width={100} height={75} className="object-cover" />
                   </a>
                 </div>
               </div>
