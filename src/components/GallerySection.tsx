@@ -20,6 +20,10 @@ const galleryItems = [
     { url: "https://i.imgur.com/NuOAu3G.png", description: "PMO", category: "군대" },
     { url: "https://i.imgur.com/Zta1dQg.png", description: "My M9", category: "군대" },
     { url: "https://i.imgur.com/uVo5pcu.png", description: "M4 내부", category: "군대" },
+    { url: "https://i.imgur.com/QlzKeC3_d.jpeg?maxwidth=520&shape=thumb&fidelity=high", description: "me", category: "군대" },
+    { url: "https://i.imgur.com/O5v8fKw_d.png?maxwidth=520&shape=thumb&fidelity=high", description: "PVT Almanza", category: "군대" },
+    { url: "https://i.imgur.com/CynrBal_d.png?maxwidth=520&shape=thumb&fidelity=high", description: "PVT Agosto", category: "군대" },
+    { url: "https://i.imgur.com/qQorgFu_d.png?maxwidth=520&shape=thumb&fidelity=high", description: "PVT Fierce", category: "군대" },
     { url: "https://i.imgur.com/Y6QeZPw.png", description: "병적 증명서", category: "증명서" },
 
     // Work Experience
@@ -45,15 +49,17 @@ const galleryItems = [
 
     // Hobbies & Art
     { url: "https://i.imgur.com/5Shgggo.png", description: "프리다이빙 의외의 재능 발견", category: "취미" },
-    { url: "https://i.imgur.com/ubrY8Ox.jpeg", description: "AIDA 프리다이버 LV4", category: "취미" },
+    { url: "https://i.imgur.com/ubrY8Ox.jpeg", description: "수많은 프리다이빙 자격 취득", category: "취미" },
+    { url: "https://i.imgur.com/z16HGq4.png", description: "수많은 해외 인솔", category: "취미" },
     { url: "https://i.imgur.com/oxUXNu3.png", description: "작품 - 1종보통따기싫어 1", category: "아트웍" },
     { url: "https://i.imgur.com/V691q2r.png", description: "작품 - 1종보통따기싫어 2", category: "아트웍" },
     { url: "https://i.imgur.com/Gr1u7Qq.png", description: "작품 - 죄를 사하다", category: "아트웍" },
     { url: "https://i.imgur.com/UUObjlX.png", description: "작품 - 죄를 사하다 2", category: "아트웍" },
 
     // Travel
-    { url: "https://i.imgur.com/MrMSVCz.png", description: "여행 - 도쿄", category: "여행" },
-    { url: "https://i.imgur.com/7vFebfV.jpeg", description: "여행 - 모리셔스", category: "여행" },
+    { url: "https://i.imgur.com/MrMSVCz.png", description: "여행 - 도쿄 외 수많은 나라", category: "여행" },
+    { url: "https://i.imgur.com/7vFebfV.jpeg", description: "프리다이빙 여행 - 모리셔스 외 수많은 나라", category: "여행" },
+    
 
     // Certificates
     { url: "https://i.imgur.com/Ug9UdIt.png", description: "어드밴스드 프리다이버 강사 자격", category: "증명서" },
