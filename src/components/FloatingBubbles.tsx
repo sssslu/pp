@@ -26,7 +26,12 @@ interface BubbleData {
   offset: number;
 }
 
-function Bubble({ data, mousePos }: { data: BubbleData; mousePos: React.MutableRefObject<{ x: number; y: number }> }) {
+interface BubbleProps {
+  data: BubbleData;
+  mousePos: React.MutableRefObject<{ x: number; y: number }>;
+}
+
+function Bubble({ data, mousePos }: BubbleProps) {
   const elementRef = useRef<HTMLDivElement>(null);
   // 현재 회피 위치 상태 저장 (부드러운 움직임을 위해)
   const state = useRef({
@@ -145,9 +150,9 @@ export default function FloatingBubbles() {
 
     // 버블 초기화
     // 클라이언트 사이드에서만 랜덤 값 생성 (Hydration mismatch 방지)
-    const newBubbles = Array.from({ length: 40 }).map((_, i) => ({
+    const newBubbles = Array.from({ length: 20 }).map((_, i) => ({
       id: i,
-      size: Math.random() * 150 + 50,
+      size: Math.random() * 150 + 100,
       initialX: Math.random() * 100,
       initialY: Math.random() * 100,
       color: colors[Math.floor(Math.random() * colors.length)],

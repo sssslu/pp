@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
-import { motion } from "framer-motion";
+import { motion, Variants } from "framer-motion";
 
 const galleryItems = [
     // Childhood & School
@@ -67,9 +67,32 @@ const galleryItems = [
     { url: "https://i.imgur.com/iw7lXVi.png", description: "처음부터 끝까지 레퍼런스없이 직접 제작하였습니다! 20260301 수정 - 이제 AI 떡칠입니다", category: "기타" },
 ];
 
-const categories = [...new Set(galleryItems.map(item => item.category))];
+const categories = [...new Set(galleryItems.map((item) => item.category))];
 
-function CategoryItem({ category, item, onClick, variants }: { category: string, item: any, onClick: () => void, variants: any }) {
+interface GalleryItemData {
+  url: string;
+  description: string;
+  category: string;
+}
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { staggerChildren: 0.1 } },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0 },
+};
+
+interface CategoryItemProps {
+  category: string;
+  item: GalleryItemData | undefined;
+  onClick: () => void;
+  variants: Variants;
+}
+
+function CategoryItem({ category, item, onClick, variants }: CategoryItemProps) {
   const [isLoaded, setIsLoaded] = useState(false);
 
   return (
@@ -80,24 +103,30 @@ function CategoryItem({ category, item, onClick, variants }: { category: string,
       whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.95 }}
     >
-        {item && (
-            <Image
-                src={item.url}
-                alt={category}
-                fill
-                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                className={`object-cover transition-opacity duration-1000 ease-in-out ${isLoaded ? "opacity-60 group-hover:opacity-100" : "opacity-0"}`}
-                onLoad={() => setIsLoaded(true)}
-            />
-        )}
-        <div className="z-10 flex flex-col items-center">
-            <span className="text-white text-center font-bold drop-shadow-md text-xl">{category}</span>
-        </div>
+      {item && (
+        <Image
+          src={item.url}
+          alt={category}
+          fill
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+          className={`object-cover transition-opacity duration-1000 ease-in-out ${isLoaded ? "opacity-60 group-hover:opacity-100" : "opacity-0"}`}
+          onLoad={() => setIsLoaded(true)}
+        />
+      )}
+      <div className="z-10 flex flex-col items-center">
+        <span className="text-white text-center font-bold drop-shadow-md text-xl">{category}</span>
+      </div>
     </motion.div>
   );
 }
 
-function GalleryImageItem({ item, onClick, variants }: { item: any, onClick: () => void, variants: any }) {
+interface GalleryImageItemProps {
+  item: GalleryItemData;
+  onClick: () => void;
+  variants: Variants;
+}
+
+function GalleryImageItem({ item, onClick, variants }: GalleryImageItemProps) {
   const [isLoaded, setIsLoaded] = useState(false);
 
   return (
@@ -130,21 +159,6 @@ export default function GallerySection() {
   const itemsToShow = selectedCategory
     ? galleryItems.filter(item => item.category === selectedCategory)
     : [];
-
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-      },
-    },
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0 },
-  };
 
   if (selectedCategory) {
     return (
@@ -181,20 +195,26 @@ export default function GallerySection() {
 
   return (
     <div className="p-4">
-        <h2 className="text-2xl font-bold text-center mb-6">갤러리</h2>
-        <motion.div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4" variants={containerVariants} initial="hidden" animate="visible">
-            {categories.map(category => {
-                const firstItem = galleryItems.find(item => item.category === category);
-                return (
-                <CategoryItem
-                    key={category}
-                    category={category}
-                    item={firstItem}
-                    onClick={() => setSelectedCategory(category)}
-                    variants={itemVariants}
-                />
-            )})}
-        </motion.div>
+      <h2 className="text-2xl font-bold text-center mb-6">갤러리</h2>
+      <motion.div
+        className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
+        {categories.map((category) => {
+          const firstItem = galleryItems.find((item) => item.category === category);
+          return (
+            <CategoryItem
+              key={category}
+              category={category}
+              item={firstItem}
+              onClick={() => setSelectedCategory(category)}
+              variants={itemVariants}
+            />
+          );
+        })}
+      </motion.div>
     </div>
   );
 }
