@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   title: "Slu Park's Portfolio",
   description: "Personal portfolio of Slu Park",
   icons: {
-    icon: "/images/favicon.png",
+    icon: "/favicon.png",
   },
   openGraph: {
     title: "Slu Park's Portfolio",
