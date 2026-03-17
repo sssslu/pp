@@ -152,7 +152,7 @@ export default function FloatingBubbles() {
     // 클라이언트 사이드에서만 랜덤 값 생성 (Hydration mismatch 방지)
     const newBubbles = Array.from({ length: 20 }).map((_, i) => ({
       id: i,
-      size: Math.random() * 150 + 100,
+      size: Math.random() * 500 + 100,
       initialX: Math.random() * 100,
       initialY: Math.random() * 100,
       color: colors[Math.floor(Math.random() * colors.length)],
