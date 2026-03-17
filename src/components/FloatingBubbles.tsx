@@ -31,6 +31,15 @@ interface BubbleProps {
   mousePos: React.MutableRefObject<{ x: number; y: number }>;
 }
 
+// 저사양 기기 감지
+function isLowEndDevice(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const nav = navigator as Navigator & { deviceMemory?: number };
+  if (nav.hardwareConcurrency && nav.hardwareConcurrency <= 4) return true;
+  if (nav.deviceMemory && nav.deviceMemory <= 4) return true;
+  return false;
+}
+
 function Bubble({ data, mousePos }: BubbleProps) {
   const elementRef = useRef<HTMLDivElement>(null);
   // 현재 회피 위치 상태 저장 (부드러운 움직임을 위해)
@@ -40,13 +49,28 @@ function Bubble({ data, mousePos }: BubbleProps) {
   });
 
   useEffect(() => {
+    // prefers-reduced-motion 존중
+    const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (prefersReduced) return;
+
     let animationFrameId: number;
     const startTime = Date.now();
+    const lowEnd = isLowEndDevice();
+    let lastFrameTime = 0;
+    const minFrameInterval = lowEnd ? 33 : 0; // 저사양: ~30fps 제한
 
     const update = () => {
       if (!elementRef.current) return;
 
       const now = Date.now();
+
+      // 저사양 기기에서 프레임 스킵
+      if (now - lastFrameTime < minFrameInterval) {
+        animationFrameId = requestAnimationFrame(update);
+        return;
+      }
+      lastFrameTime = now;
+
       const elapsed = (now - startTime) / 1000; // 초 단위 경과 시간
 
       // 1. 기본 둥둥 떠다니는 움직임 (Sine/Cosine 파동)
@@ -123,7 +147,8 @@ function Bubble({ data, mousePos }: BubbleProps) {
         backgroundColor: data.color,
         left: `${data.initialX}%`,
         top: `${data.initialY}%`,
-        willChange: "transform", // 성능 최적화
+        willChange: "transform",
+        contain: "layout style", // 레이아웃 격리로 리페인트 최소화
       }}
     />
   );
@@ -145,21 +170,47 @@ export default function FloatingBubbles() {
         }
     };
 
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("touchmove", handleTouchMove);
+    window.addEventListener("mousemove", handleMouseMove, { passive: true });
+    window.addEventListener("touchmove", handleTouchMove, { passive: true });
+
+    // 저사양 기기는 버블 수 줄이기
+    const lowEnd = isLowEndDevice();
+    const smallCount = lowEnd ? 8 : 15;  // 작은 버블 수
+    const largeCount = 3 + Math.round(Math.random()); // 3~4개 큰 버블
 
     // 버블 초기화
     // 클라이언트 사이드에서만 랜덤 값 생성 (Hydration mismatch 방지)
-    const newBubbles = Array.from({ length: 20 }).map((_, i) => ({
-      id: i,
-      size: Math.random() * 500 + 100,
-      initialX: Math.random() * 100,
-      initialY: Math.random() * 100,
-      color: colors[Math.floor(Math.random() * colors.length)],
-      speed: Math.random() * 1.5 + 0.5, // 둥둥거리는 속도 (더 빠르게)
-      amplitude: Math.random() * 300 + 100, // 둥둥거리는 범위
-      offset: Math.random() * Math.PI * 2, // 시작 위상 랜덤화
-    }));
+    const newBubbles: BubbleData[] = [];
+    let id = 0;
+
+    // 큰 버블 — 1~2개 (첫 번째는 항상 최대 크기 450px)
+    for (let i = 0; i < largeCount; i++) {
+      newBubbles.push({
+        id: id++,
+        size: i === 0 ? 500 : Math.random() * 150 + 300,
+        initialX: Math.random() * 80 + 10,
+        initialY: Math.random() * 80 + 10,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        speed: Math.random() * 0.5 + 0.3,
+        amplitude: Math.random() * 150 + 80,
+        offset: Math.random() * Math.PI * 2,
+      });
+    }
+
+    // 작은 버블 (40~180px) — 다수
+    for (let i = 0; i < smallCount; i++) {
+      newBubbles.push({
+        id: id++,
+        size: Math.random() * 140 + 40,
+        initialX: Math.random() * 100,
+        initialY: Math.random() * 100,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        speed: Math.random() * 1.5 + 0.5,
+        amplitude: Math.random() * 300 + 100,
+        offset: Math.random() * Math.PI * 2,
+      });
+    }
+
     setBubbles(newBubbles);
 
     return () => {
