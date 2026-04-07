@@ -77,7 +77,10 @@ function BackgroundMatrix() {
 
     let isMobile = window.innerWidth <= MOBILE_BREAKPOINT;
 
-    const onMouseMove = (e: MouseEvent) => { mousePos.current = { x: e.clientX, y: e.clientY }; };
+    const onMouseMove = (e: MouseEvent) => {
+      if (isMobile) return; // 모바일에서는 커서 반발 없음
+      mousePos.current = { x: e.clientX, y: e.clientY };
+    };
     const onTouchMove = (e: TouchEvent) => {
       if (isMobile) return; // 모바일에서는 터치 반발 없음
       if (e.touches.length > 0)
@@ -96,6 +99,7 @@ function BackgroundMatrix() {
       canvas.width  = window.innerWidth;
       canvas.height = window.innerHeight;
       isMobile = canvas.width <= MOBILE_BREAKPOINT;
+      if (isMobile) mousePos.current = { x: -9999, y: -9999 }; // 모바일 전환 시 반발 초기화
       cols = Math.ceil(canvas.width  / CELL);
       rows = Math.ceil(canvas.height / CELL);
       cells = Array.from({ length: rows }, () =>
@@ -109,7 +113,9 @@ function BackgroundMatrix() {
 
     // ── 버블 초기화 ───────────────────────────────────────────────────
 
-    const bubbleCount = lowEnd ? 7 : 13;
+    const bubbleCount = isMobile
+      ? (lowEnd ? 14 : 26)  // 모바일: 2배
+      : (lowEnd ?  7 : 13); // 데스크톱: 기본
     const bubbles: Bubble[] = Array.from({ length: bubbleCount }, (_, i) => {
       const size = i === 0 ? 450
                  : i <  3 ? Math.random() * 150 + 300
