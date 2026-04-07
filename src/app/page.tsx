@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import AboutSection from "@/components/AboutSection";
 import GallerySection from "@/components/GallerySection";
 import HeroSection from "@/components/HeroSection";
@@ -11,7 +11,34 @@ import ContactFooter from "@/components/ContactFooter";
 import { motion, AnimatePresence } from "framer-motion";
 import FloatingBubbles from "@/components/FloatingBubbles";
 
-const TABS = ["소개", "능력치!", "프로젝트", "취미", "갤러리"];
+// ── 상수 ──────────────────────────────────────────────────────────────
+
+const TABS = ["소개", "능력치!", "프로젝트", "취미", "갤러리"] as const;
+
+const PAGE_VARIANTS = {
+  initial: { opacity: 0, y: 20 },
+  in:      { opacity: 1, y: 0 },
+  out:     { opacity: 0, y: -20 },
+} as const;
+
+const VOLUME_BTN: Record<"full" | "half" | "off", string> = {
+  full: "bg-cyan-900/20 border-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.5)] hover:shadow-[0_0_30px_rgba(34,211,238,0.8)]",
+  half: "bg-yellow-900/20 border-yellow-400 shadow-[0_0_20px_rgba(250,204,21,0.5)] hover:shadow-[0_0_30px_rgba(250,204,21,0.8)]",
+  off:  "bg-red-900/20 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.5)] hover:shadow-[0_0_30px_rgba(239,68,68,0.8)]",
+};
+
+// ── 유틸 ──────────────────────────────────────────────────────────────
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// ── 아이콘 ────────────────────────────────────────────────────────────
 
 function MusicOnIcon() {
   return (
@@ -37,38 +64,31 @@ function MusicOffIcon() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"
       className="w-6 h-6 text-red-500 drop-shadow-[0_0_5px_rgba(239,68,68,1)]">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 8.25L21 12m0 0l-3.75 3.75M21 12H3" />
+      {/* speaker-x-mark: 스피커 바디 + X 표시 (Heroicons v2 outline) */}
       <path strokeLinecap="round" strokeLinejoin="round"
-        d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+        d="M17.25 9.75L19.5 12m0 0l2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" />
     </svg>
   );
 }
 
+// ── 컴포넌트 ──────────────────────────────────────────────────────────
+
 export default function Home() {
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [viewCount, setViewCount] = useState(-1);
-  const [volumeState, setVolumeState] = useState<"full" | "half" | "off">("full");
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const bgmListRef = useRef<string[]>([]);
+  const [viewCount, setViewCount]         = useState(-1);
+  const [volumeState, setVolumeState]     = useState<"full" | "half" | "off">("full");
+
+  const audioRef    = useRef<HTMLAudioElement>(null);
+  const bgmListRef  = useRef<string[]>([]);
   const bgmIndexRef = useRef(0);
 
-  const shuffle = (arr: string[]) => {
-    const a = [...arr];
-    for (let i = a.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [a[i], a[j]] = [a[j], a[i]];
-    }
-    return a;
-  };
-
-  const playTrack = (index: number) => {
+  const playTrack = useCallback((index: number) => {
     const audio = audioRef.current;
     if (!audio || bgmListRef.current.length === 0) return;
-    audio.src = `/bgm/${bgmListRef.current[index]}`;
+    audio.src    = `/bgm/${bgmListRef.current[index]}`;
     audio.volume = 0.3;
     audio.play().catch(() => setVolumeState("off"));
-  };
+  }, []);
 
   const cycleVolume = () => {
     const audio = audioRef.current;
@@ -90,54 +110,34 @@ export default function Home() {
     fetch("/api/bgm")
       .then((r) => r.json())
       .then(({ files }: { files: string[] }) => {
-        if (!files || files.length === 0) return;
-        bgmListRef.current = shuffle(files);
+        if (!files?.length) return;
+        bgmListRef.current  = shuffle(files);
         bgmIndexRef.current = 0;
         playTrack(0);
       })
       .catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [playTrack]);
 
   useEffect(() => {
     const controller = new AbortController();
-    const fetchViewCount = async () => {
-      try {
-        const res = await fetch("https://slusphere.fly.dev/viewcount/1", {
-          signal: controller.signal,
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setViewCount(data.viewCount);
-        } else {
-          setViewCount(0);
-        }
-      } catch (error: any) {
-        if (error.name !== "AbortError") {
-          console.error("Failed to fetch view count:", error);
-          setViewCount(0);
-        }
-      }
-    };
-    fetchViewCount();
+    fetch("https://slusphere.fly.dev/viewcount/1", { signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((data) => setViewCount(data.viewCount))
+      .catch((err: unknown) => {
+        if (!(err instanceof DOMException && err.name === "AbortError")) setViewCount(0);
+      });
     return () => controller.abort();
   }, []);
 
-  const pages = [
-    <AboutSection key="about" />,
-    <PerkSection key="perk" />,
-    <ProjectsSection key="projects" />,
-    <HobbySection key="hobby" />,
-    <GallerySection key="gallery" />,
-  ];
-
   const isGalleryTab = selectedIndex === 4;
 
-  const pageVariants = {
-    initial: { opacity: 0, y: 20 },
-    in: { opacity: 1, y: 0 },
-    out: { opacity: 0, y: -20 },
-  };
+  const pages = [
+    <AboutSection    key="about"    />,
+    <PerkSection     key="perk"     />,
+    <ProjectsSection key="projects" />,
+    <HobbySection    key="hobby"    />,
+    <GallerySection  key="gallery"  />,
+  ];
 
   return (
     <motion.div
@@ -147,28 +147,25 @@ export default function Home() {
       className="min-h-screen text-white"
     >
       <FloatingBubbles />
+
       <audio
         ref={audioRef}
         onEnded={() => {
           const list = bgmListRef.current;
-          if (list.length === 0) return;
+          if (!list.length) return;
           bgmIndexRef.current = (bgmIndexRef.current + 1) % list.length;
           playTrack(bgmIndexRef.current);
         }}
       />
+
       <button
         onClick={cycleVolume}
-        className={`fixed bottom-8 right-8 z-50 flex items-center justify-center w-14 h-14 rounded-xl border-2 transition-all duration-300 backdrop-blur-md group ${
-          volumeState === "full"
-            ? "bg-cyan-900/20 border-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.5)] hover:shadow-[0_0_30px_rgba(34,211,238,0.8)]"
-            : volumeState === "half"
-            ? "bg-yellow-900/20 border-yellow-400 shadow-[0_0_20px_rgba(250,204,21,0.5)] hover:shadow-[0_0_30px_rgba(250,204,21,0.8)]"
-            : "bg-red-900/20 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.5)] hover:shadow-[0_0_30px_rgba(239,68,68,0.8)]"
-        }`}
         aria-label="Cycle volume"
+        className={`fixed bottom-8 right-8 z-50 flex items-center justify-center w-14 h-14 rounded-xl border-2 transition-all duration-300 backdrop-blur-md ${VOLUME_BTN[volumeState]}`}
       >
         {volumeState === "full" ? <MusicOnIcon /> : volumeState === "half" ? <MusicHalfIcon /> : <MusicOffIcon />}
       </button>
+
       <main>
         <AnimatePresence initial={false}>
           {!isGalleryTab && (
@@ -183,48 +180,34 @@ export default function Home() {
             </motion.div>
           )}
         </AnimatePresence>
+
         <div data-ascii-mask className="sticky top-0 z-20 bg-transparent h-12 flex justify-evenly items-center">
           {TABS.map((label, index) => {
             const isSelected = selectedIndex === index;
             return (
-              <button
-                key={label}
-                onClick={() => setSelectedIndex(index)}
-                className="text-center"
-              >
-                <span
-                  className={`${
-                    isSelected
-                      ? "text-white font-bold"
-                      : "text-gray-400 font-normal"
-                  }`}
-                >
+              <button key={label} onClick={() => setSelectedIndex(index)} className="text-center">
+                <span className={isSelected ? "text-white font-bold" : "text-gray-400 font-normal"}>
                   {label}
                 </span>
-                {isSelected && (
-                  <div className="mt-1 h-[2px] w-5 bg-white mx-auto" />
-                )}
+                {isSelected && <div className="mt-1 h-[2px] w-5 bg-white mx-auto" />}
               </button>
             );
           })}
         </div>
+
         <AnimatePresence mode="wait">
           <motion.div
             key={selectedIndex}
-            variants={pageVariants}
+            variants={PAGE_VARIANTS}
             initial="initial"
             animate="in"
             exit="out"
             transition={{ duration: 0.5, ease: "easeInOut" }}
             className="w-full relative z-10"
-            style={
-              isGalleryTab
-                ? undefined
-                : {
-                    maskImage: "linear-gradient(to bottom, transparent 0px, black 30px)",
-                    WebkitMaskImage: "linear-gradient(to bottom, transparent 0px, black 30px)",
-                  }
-            }
+            style={isGalleryTab ? undefined : {
+              maskImage:       "linear-gradient(to bottom, transparent 0px, black 30px)",
+              WebkitMaskImage: "linear-gradient(to bottom, transparent 0px, black 30px)",
+            }}
           >
             {pages[selectedIndex]}
           </motion.div>

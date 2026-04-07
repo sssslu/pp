@@ -48,7 +48,7 @@ export default function PerkSection() {
           <p className="mt-2 text-gray-300 whitespace-pre-line">
             - 창의성
             <br />- 책임감
-            <br />- 능통한 영어
+            <br />- 능통한 영어 / 한국어
           </p>
         </div>
         <div 
