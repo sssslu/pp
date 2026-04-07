@@ -1,22 +1,20 @@
-"use client";
+﻿"use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef } from "react";
 
-const colors = [
-  "#ef4444", // red
-  "#f97316", // orange
-  "#eab308", // yellow
-  "#84cc16", // lime
-  "#10b981", // emerald
-  "#06b6d4", // cyan
-  "#3b82f6", // blue
-  "#8b5cf6", // violet
-  "#d946ef", // fuchsia
-  "#ec4899", // pink
+// ── 상수 ──────────────────────────────────────────────
+const COLORS = [
+  "#ef4444","#f97316","#eab308","#84cc16","#10b981",
+  "#06b6d4","#3b82f6","#8b5cf6","#d946ef","#ec4899",
 ];
 
-interface BubbleData {
-  id: number;
+const ASCII_CHARS = ['0','1','0','1','0','1',' ',' ','.',':', '|','-','+','/','\\'];
+const BG_CHARS    = ['0','1','0','1',' ',' ',' ','.',' ','0','1',' ','/',':'];
+const CELL = 12;
+const FLICKER_RATIO = 0.08;
+
+// ── 타입 ──────────────────────────────────────────────
+interface Bubble {
   size: number;
   initialX: number;
   initialY: number;
@@ -24,14 +22,11 @@ interface BubbleData {
   speed: number;
   amplitude: number;
   offset: number;
+  avoidX: number;
+  avoidY: number;
 }
 
-interface BubbleProps {
-  data: BubbleData;
-  mousePos: React.MutableRefObject<{ x: number; y: number }>;
-}
-
-// 저사양 기기 감지
+// ── 유틸 ──────────────────────────────────────────────
 function isLowEndDevice(): boolean {
   if (typeof navigator === "undefined") return false;
   const nav = navigator as Navigator & { deviceMemory?: number };
@@ -40,190 +35,191 @@ function isLowEndDevice(): boolean {
   return false;
 }
 
-function Bubble({ data, mousePos }: BubbleProps) {
-  const elementRef = useRef<HTMLDivElement>(null);
-  // 현재 회피 위치 상태 저장 (부드러운 움직임을 위해)
-  const state = useRef({
-    avoidX: 0,
-    avoidY: 0,
-  });
+// ── 컴포넌트 ──────────────────────────────────────────
+function BackgroundMatrix() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const mousePos  = useRef({ x: -9999, y: -9999 });
 
   useEffect(() => {
-    // prefers-reduced-motion 존중
-    const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (prefersReduced) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
 
-    let animationFrameId: number;
-    const startTime = Date.now();
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
     const lowEnd = isLowEndDevice();
-    let lastFrameTime = 0;
-    const minFrameInterval = lowEnd ? 33 : 0; // 저사양: ~30fps 제한
+    const flickerRatio = lowEnd ? FLICKER_RATIO / 2 : FLICKER_RATIO;
 
-    const update = () => {
-      if (!elementRef.current) return;
+    const onMouseMove = (e: MouseEvent)  => { mousePos.current = { x: e.clientX, y: e.clientY }; };
+    const onTouchMove = (e: TouchEvent)  => {
+      if (e.touches.length > 0)
+        mousePos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    };
+    window.addEventListener("mousemove", onMouseMove, { passive: true });
+    window.addEventListener("touchmove",  onTouchMove,  { passive: true });
 
-      const now = Date.now();
+    let cols = 0, rows = 0;
+    let cells: { ch: string; color: string; alpha: number }[][] = [];
 
-      // 저사양 기기에서 프레임 스킵
-      if (now - lastFrameTime < minFrameInterval) {
-        animationFrameId = requestAnimationFrame(update);
-        return;
-      }
-      lastFrameTime = now;
-
-      const elapsed = (now - startTime) / 1000; // 초 단위 경과 시간
-
-      // 1. 기본 둥둥 떠다니는 움직임 (Sine/Cosine 파동)
-      // X와 Y의 속도를 다르게 하여 불규칙한 궤적 생성
-      // 두 개의 파동을 합성하여 단순 반복(초기화)되는 느낌을 없애고 궤적을 길게 만듦
-      const ambientX = Math.sin(elapsed * data.speed + data.offset) * data.amplitude +
-                       Math.sin(elapsed * data.speed * 0.37 + data.offset) * (data.amplitude * 0.5);
-                       
-      const ambientY = Math.cos(elapsed * data.speed * 0.8 + data.offset) * data.amplitude +
-                       Math.cos(elapsed * data.speed * 0.31 + data.offset) * (data.amplitude * 0.5);
-
-      // 2. 마우스/터치 회피 로직
-      const winW = window.innerWidth;
-      const winH = window.innerHeight;
-      
-      // 버블의 기본 위치 (화면 비율 기준)
-      const baseX = (data.initialX / 100) * winW;
-      const baseY = (data.initialY / 100) * winH;
-      
-      // 현재 버블의 추정 중심 좌표 (기본 위치 + 둥둥거림 + 이전 회피값)
-      const currentX = baseX + ambientX + state.current.avoidX + data.size / 2;
-      const currentY = baseY + ambientY + state.current.avoidY + data.size / 2;
-
-      const mx = mousePos.current.x;
-      const my = mousePos.current.y;
-
-      // 마우스와 버블 사이의 거리 계산
-      const dx = currentX - mx;
-      const dy = currentY - my;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-
-      const repulsionRadius = 500; // 반응 반경 (이 거리 안에 들어오면 도망감)
-      const maxRepulsion = 650; // 최대 도망 거리
-
-      let targetAvoidX = 0;
-      let targetAvoidY = 0;
-
-      // 반응 반경 안에 들어왔을 때
-      if (dist < repulsionRadius) {
-        const force = (repulsionRadius - dist) / repulsionRadius; // 0.0 ~ 1.0 (가까울수록 1)
-        const angle = Math.atan2(dy, dx); // 도망갈 방향
-        const push = force * maxRepulsion; // 밀어내는 힘
-        
-        targetAvoidX = Math.cos(angle) * push;
-        targetAvoidY = Math.sin(angle) * push;
-      }
-
-      // 부드러운 움직임을 위한 선형 보간 (Lerp)
-      // 목표 위치로 서서히 이동 (0.08은 반응 속도 계수)
-      const lerpFactor = 0.05;
-      state.current.avoidX += (targetAvoidX - state.current.avoidX) * lerpFactor;
-      state.current.avoidY += (targetAvoidY - state.current.avoidY) * lerpFactor;
-
-      // 최종 위치 적용
-      const finalX = ambientX + state.current.avoidX;
-      const finalY = ambientY + state.current.avoidY;
-
-      elementRef.current.style.transform = `translate3d(${finalX}px, ${finalY}px, 0)`;
-
-      animationFrameId = requestAnimationFrame(update);
+    const resize = () => {
+      canvas.width  = window.innerWidth;
+      canvas.height = window.innerHeight;
+      cols = Math.ceil(canvas.width  / CELL);
+      rows = Math.ceil(canvas.height / CELL);
+      cells = Array.from({ length: rows }, () =>
+        Array.from({ length: cols }, () => ({
+          ch:    Math.random() < 0.18 ? BG_CHARS[Math.floor(Math.random() * BG_CHARS.length)] : " ",
+          color: COLORS[Math.floor(Math.random() * COLORS.length)],
+          alpha: Math.random() * 0.25 + 0.05,
+        }))
+      );
     };
 
-    animationFrameId = requestAnimationFrame(update);
-    return () => cancelAnimationFrame(animationFrameId);
-  }, [data, mousePos]);
+    const bubbleCount = lowEnd ? 7 : 13;
+    const bubbles: Bubble[] = Array.from({ length: bubbleCount }, (_, i) => {
+      const size = i === 0 ? 450
+                 : i < 3  ? Math.random() * 150 + 300
+                           : Math.random() * 120 + 50;
+      return {
+        size,
+        initialX:  Math.random() * 80 + 10,
+        initialY:  Math.random() * 80 + 10,
+        color:     COLORS[Math.floor(Math.random() * COLORS.length)],
+        speed:     Math.random() * 1.2 + 0.3,
+        amplitude: Math.random() * 200 + 60,
+        offset:    Math.random() * Math.PI * 2,
+        avoidX: 0,
+        avoidY: 0,
+      };
+    });
+
+    const REPULSION_RADIUS = 500;
+    const MAX_REPULSION    = 650;
+    const LERP             = 0.05;
+
+    const updateBubble = (b: Bubble, t: number): { cx: number; cy: number } => {
+      const winW  = window.innerWidth;
+      const winH  = window.innerHeight;
+      const baseX = (b.initialX / 100) * winW;
+      const baseY = (b.initialY / 100) * winH;
+      const ambX  = Math.sin(t * b.speed + b.offset) * b.amplitude
+                  + Math.sin(t * b.speed * 0.37 + b.offset) * (b.amplitude * 0.5);
+      const ambY  = Math.cos(t * b.speed * 0.8  + b.offset) * b.amplitude
+                  + Math.cos(t * b.speed * 0.31  + b.offset) * (b.amplitude * 0.5);
+
+      const cx0  = baseX + ambX + b.avoidX + b.size / 2;
+      const cy0  = baseY + ambY + b.avoidY + b.size / 2;
+      const mx   = mousePos.current.x;
+      const my   = mousePos.current.y;
+      const mdx  = cx0 - mx;
+      const mdy  = cy0 - my;
+      const dist = Math.sqrt(mdx * mdx + mdy * mdy);
+      let targetAvoidX = 0, targetAvoidY = 0;
+      if (dist < REPULSION_RADIUS && dist > 0) {
+        const force  = (REPULSION_RADIUS - dist) / REPULSION_RADIUS;
+        const angle  = Math.atan2(mdy, mdx);
+        targetAvoidX = Math.cos(angle) * force * MAX_REPULSION;
+        targetAvoidY = Math.sin(angle) * force * MAX_REPULSION;
+      }
+      b.avoidX += (targetAvoidX - b.avoidX) * LERP;
+      b.avoidY += (targetAvoidY - b.avoidY) * LERP;
+
+      return {
+        cx: baseX + ambX + b.avoidX + b.size / 2,
+        cy: baseY + ambY + b.avoidY + b.size / 2,
+      };
+    };
+
+    const flicker = () => {
+      const total = cols * rows;
+      const count = Math.floor(total * flickerRatio);
+      for (let i = 0; i < count; i++) {
+        const r    = Math.floor(Math.random() * rows);
+        const c    = Math.floor(Math.random() * cols);
+        const roll = Math.random();
+        if (roll < 0.3) {
+          cells[r][c].ch = " ";
+        } else if (roll < 0.6) {
+          cells[r][c].ch    = BG_CHARS[Math.floor(Math.random() * BG_CHARS.length)];
+          cells[r][c].alpha = Math.random() * 0.25 + 0.05;
+        } else {
+          cells[r][c].ch    = BG_CHARS[Math.floor(Math.random() * BG_CHARS.length)];
+          cells[r][c].color = COLORS[Math.floor(Math.random() * COLORS.length)];
+          cells[r][c].alpha = Math.random() * 0.25 + 0.05;
+        }
+      }
+    };
+
+    const draw = (t: number) => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.font         = `${CELL}px monospace`;
+      ctx.textBaseline = "top";
+
+      const centers = bubbles.map((b) => ({ ...updateBubble(b, t), r: b.size / 2, color: b.color }));
+
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+          const cell = cells[row][col];
+          if (cell.ch === " ") continue;
+
+          const px = col * CELL + CELL / 2;
+          const py = row * CELL + CELL / 2;
+
+          let bubbleColor: string | null = null;
+          for (const { cx, cy, r, color } of centers) {
+            const dx = px - cx, dy = py - cy;
+            if (dx * dx + dy * dy < r * r) { bubbleColor = color; break; }
+          }
+
+          if (bubbleColor) {
+            ctx.globalAlpha = 0.85;
+            ctx.fillStyle   = bubbleColor;
+            ctx.fillText(ASCII_CHARS[Math.floor(Math.random() * ASCII_CHARS.length)], col * CELL, row * CELL);
+          } else {
+            ctx.globalAlpha = cell.alpha;
+            ctx.fillStyle   = cell.color;
+            ctx.fillText(cell.ch, col * CELL, row * CELL);
+          }
+        }
+      }
+      ctx.globalAlpha = 1;
+    };
+
+    let rafId: number;
+    const loop = () => {
+      flicker();
+      draw(performance.now() / 1000);
+      rafId = requestAnimationFrame(loop);
+    };
+
+    resize();
+    window.addEventListener("resize", resize, { passive: true });
+    rafId = requestAnimationFrame(loop);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      window.removeEventListener("resize",    resize);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("touchmove", onTouchMove);
+    };
+  }, []);
 
   return (
-    <div
-      ref={elementRef}
-      className="absolute rounded-full opacity-40 blur-3xl"
+    <canvas
+      ref={canvasRef}
       style={{
-        width: data.size,
-        height: data.size,
-        backgroundColor: data.color,
-        left: `${data.initialX}%`,
-        top: `${data.initialY}%`,
-        willChange: "transform",
-        contain: "layout style", // 레이아웃 격리로 리페인트 최소화
+        position:      "fixed",
+        inset:         0,
+        width:         "100%",
+        height:        "100%",
+        pointerEvents: "none",
+        zIndex:        0,
       }}
     />
   );
 }
 
 export default function FloatingBubbles() {
-  const [bubbles, setBubbles] = useState<BubbleData[]>([]);
-  // 마우스 위치를 ref로 관리하여 리렌더링 없이 값 공유
-  const mousePos = useRef({ x: -9999, y: -9999 });
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      mousePos.current = { x: e.clientX, y: e.clientY };
-    };
-    
-    const handleTouchMove = (e: TouchEvent) => {
-        if (e.touches.length > 0) {
-            mousePos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-        }
-    };
-
-    window.addEventListener("mousemove", handleMouseMove, { passive: true });
-    window.addEventListener("touchmove", handleTouchMove, { passive: true });
-
-    // 저사양 기기는 버블 수 줄이기
-    const lowEnd = isLowEndDevice();
-    const smallCount = lowEnd ? 8 : 15;  // 작은 버블 수
-    const largeCount = 3 + Math.round(Math.random()); // 3~4개 큰 버블
-
-    // 버블 초기화
-    // 클라이언트 사이드에서만 랜덤 값 생성 (Hydration mismatch 방지)
-    const newBubbles: BubbleData[] = [];
-    let id = 0;
-
-    // 큰 버블 — 1~2개 (첫 번째는 항상 최대 크기 450px)
-    for (let i = 0; i < largeCount; i++) {
-      newBubbles.push({
-        id: id++,
-        size: i === 0 ? 500 : Math.random() * 150 + 300,
-        initialX: Math.random() * 80 + 10,
-        initialY: Math.random() * 80 + 10,
-        color: colors[Math.floor(Math.random() * colors.length)],
-        speed: Math.random() * 0.5 + 0.3,
-        amplitude: Math.random() * 150 + 80,
-        offset: Math.random() * Math.PI * 2,
-      });
-    }
-
-    // 작은 버블 (40~180px) — 다수
-    for (let i = 0; i < smallCount; i++) {
-      newBubbles.push({
-        id: id++,
-        size: Math.random() * 140 + 40,
-        initialX: Math.random() * 100,
-        initialY: Math.random() * 100,
-        color: colors[Math.floor(Math.random() * colors.length)],
-        speed: Math.random() * 1.5 + 0.5,
-        amplitude: Math.random() * 300 + 100,
-        offset: Math.random() * Math.PI * 2,
-      });
-    }
-
-    setBubbles(newBubbles);
-
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("touchmove", handleTouchMove);
-    };
-  }, []);
-
-  return (
-    <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-      {bubbles.map((bubble) => (
-        <Bubble key={bubble.id} data={bubble} mousePos={mousePos} />
-      ))}
-    </div>
-  );
+  return <BackgroundMatrix />;
 }

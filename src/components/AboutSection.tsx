@@ -81,7 +81,7 @@ export default function AboutSection() {
             </RevealGroup>
             <RevealGroup>
               <p>
-                - <RedactedItem text="용산 카투사 KATUSA" /> <RedactedItem text="Military Police" /> 만기 전역
+                - <RedactedItem text="용산 KATUSA" /><RedactedItem text="Military Police" /> 만기 전역
               </p>
             </RevealGroup>
             <RevealGroup>
@@ -100,7 +100,7 @@ export default function AboutSection() {
             <RevealGroup>
               <div>
                 <p>
-                  - <RedactedItem text="GPT API, Python" />, 자동화 시스템을 활용해 <RedactedItem text="실제 트레이딩 시스템" />을 구현하고 운영한 경험이 있습니다. <RedactedItem text="(프로그램 만드는법을 강의로 만들어 인프런에 팔아먹었습니다!)" />
+                  - <RedactedItem text="GPT API, Python" />, 자동화 시스템을 활용해 <RedactedItem text="실제 트레이딩 시스템" />을 구현하고 운영한 경험이 있습니다. <RedactedItem text="(강의로 만들어 인프런에 팔아먹었습니다!)" />
                 </p>
               <div className="flex flex-col items-start ml-10 mt-1">
                 <svg width="70" height="70" viewBox="0 0 100 100" className="ml-36 -mt-2 text-red-500 fill-none stroke-current stroke-[3px] drop-shadow-lg transform -rotate-12">

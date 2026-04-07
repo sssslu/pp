@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useRef } from "react";
 import AboutSection from "@/components/AboutSection";
@@ -15,39 +15,31 @@ const TABS = ["소개", "능력치!", "프로젝트", "취미", "갤러리"];
 
 function MusicOnIcon() {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={2}
-      stroke="currentColor"
-      className="w-6 h-6 text-cyan-400 drop-shadow-[0_0_5px_rgba(34,211,238,1)] animate-pulse"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z"
-      />
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"
+      className="w-6 h-6 text-cyan-400 drop-shadow-[0_0_5px_rgba(34,211,238,1)] animate-pulse">
+      <path strokeLinecap="round" strokeLinejoin="round"
+        d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" />
+    </svg>
+  );
+}
+
+function MusicHalfIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"
+      className="w-6 h-6 text-yellow-400 drop-shadow-[0_0_5px_rgba(250,204,21,1)]">
+      <path strokeLinecap="round" strokeLinejoin="round"
+        d="M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" />
     </svg>
   );
 }
 
 function MusicOffIcon() {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={2}
-      stroke="currentColor"
-      className="w-6 h-6 text-red-500 drop-shadow-[0_0_5px_rgba(239,68,68,1)]"
-    >
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"
+      className="w-6 h-6 text-red-500 drop-shadow-[0_0_5px_rgba(239,68,68,1)]">
       <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 8.25L21 12m0 0l-3.75 3.75M21 12H3" />
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
-      />
+      <path strokeLinecap="round" strokeLinejoin="round"
+        d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
       <path strokeLinecap="round" strokeLinejoin="round" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
     </svg>
   );
@@ -56,30 +48,55 @@ function MusicOffIcon() {
 export default function Home() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [viewCount, setViewCount] = useState(-1);
-  const [isPlaying, setIsPlaying] = useState(true);
+  const [volumeState, setVolumeState] = useState<"full" | "half" | "off">("full");
   const audioRef = useRef<HTMLAudioElement>(null);
+  const bgmListRef = useRef<string[]>([]);
+  const bgmIndexRef = useRef(0);
 
-  const togglePlay = () => {
-    if (audioRef.current) {
-      if (isPlaying) {
-        audioRef.current.pause();
-      } else {
-        audioRef.current.play();
-      }
-      setIsPlaying(!isPlaying);
+  const shuffle = (arr: string[]) => {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  };
+
+  const playTrack = (index: number) => {
+    const audio = audioRef.current;
+    if (!audio || bgmListRef.current.length === 0) return;
+    audio.src = `/bgm/${bgmListRef.current[index]}`;
+    audio.volume = 0.3;
+    audio.play().catch(() => setVolumeState("off"));
+  };
+
+  const cycleVolume = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (volumeState === "full") {
+      audio.volume = 0.15;
+      setVolumeState("half");
+    } else if (volumeState === "half") {
+      audio.pause();
+      setVolumeState("off");
+    } else {
+      audio.volume = 0.3;
+      audio.play().catch(() => {});
+      setVolumeState("full");
     }
   };
 
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = 0.3;
-      const playPromise = audioRef.current.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(() => {
-          setIsPlaying(false);
-        });
-      }
-    }
+    fetch("/api/bgm")
+      .then((r) => r.json())
+      .then(({ files }: { files: string[] }) => {
+        if (!files || files.length === 0) return;
+        bgmListRef.current = shuffle(files);
+        bgmIndexRef.current = 0;
+        playTrack(0);
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -117,18 +134,9 @@ export default function Home() {
   const isGalleryTab = selectedIndex === 4;
 
   const pageVariants = {
-    initial: {
-      opacity: 0,
-      y: 20,
-    },
-    in: {
-      opacity: 1,
-      y: 0,
-    },
-    out: {
-      opacity: 0,
-      y: -20,
-    },
+    initial: { opacity: 0, y: 20 },
+    in: { opacity: 1, y: 0 },
+    out: { opacity: 0, y: -20 },
   };
 
   return (
@@ -136,20 +144,30 @@ export default function Home() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.8 }}
-      className="bg-[#0a0a0a] min-h-screen text-white"
+      className="min-h-screen text-white"
     >
       <FloatingBubbles />
-      <audio ref={audioRef} src="/bgm.mp3" loop />
+      <audio
+        ref={audioRef}
+        onEnded={() => {
+          const list = bgmListRef.current;
+          if (list.length === 0) return;
+          bgmIndexRef.current = (bgmIndexRef.current + 1) % list.length;
+          playTrack(bgmIndexRef.current);
+        }}
+      />
       <button
-        onClick={togglePlay}
+        onClick={cycleVolume}
         className={`fixed bottom-8 right-8 z-50 flex items-center justify-center w-14 h-14 rounded-xl border-2 transition-all duration-300 backdrop-blur-md group ${
-          isPlaying
+          volumeState === "full"
             ? "bg-cyan-900/20 border-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.5)] hover:shadow-[0_0_30px_rgba(34,211,238,0.8)]"
+            : volumeState === "half"
+            ? "bg-yellow-900/20 border-yellow-400 shadow-[0_0_20px_rgba(250,204,21,0.5)] hover:shadow-[0_0_30px_rgba(250,204,21,0.8)]"
             : "bg-red-900/20 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.5)] hover:shadow-[0_0_30px_rgba(239,68,68,0.8)]"
         }`}
-        aria-label="Toggle music"
+        aria-label="Cycle volume"
       >
-        {isPlaying ? <MusicOnIcon /> : <MusicOffIcon />}
+        {volumeState === "full" ? <MusicOnIcon /> : volumeState === "half" ? <MusicHalfIcon /> : <MusicOffIcon />}
       </button>
       <main>
         <AnimatePresence initial={false}>
@@ -165,7 +183,7 @@ export default function Home() {
             </motion.div>
           )}
         </AnimatePresence>
-        <div className="sticky top-0 z-20 bg-transparent backdrop-blur-sm h-12 flex justify-evenly items-center">
+        <div data-ascii-mask className="sticky top-0 z-20 bg-transparent h-12 flex justify-evenly items-center">
           {TABS.map((label, index) => {
             const isSelected = selectedIndex === index;
             return (
