@@ -8,12 +8,10 @@ import HobbySection from "@/components/HobbySection";
 import PerkSection from "@/components/PerkSection";
 import ProjectsSection from "@/components/ProjectsSection";
 import ContactFooter from "@/components/ContactFooter";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { motion, AnimatePresence } from "framer-motion";
 import FloatingBubbles from "@/components/FloatingBubbles";
-
-// ── 상수 ──────────────────────────────────────────────────────────────
-
-const TABS = ["소개", "능력치!", "프로젝트", "취미", "갤러리"] as const;
+import { LanguageProvider, useLanguage } from "@/i18n";
 
 const PAGE_VARIANTS = {
   initial: { opacity: 0, y: 20 },
@@ -74,34 +72,76 @@ function MusicOffIcon() {
 // ── 컴포넌트 ──────────────────────────────────────────────────────────
 
 export default function Home() {
+  return (
+    <LanguageProvider>
+      <HomeInner />
+    </LanguageProvider>
+  );
+}
+
+function HomeInner() {
+  const { t } = useLanguage();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [viewCount, setViewCount]         = useState(-1);
   const [volumeState, setVolumeState]     = useState<"full" | "half" | "off">("full");
 
-  const audioRef    = useRef<HTMLAudioElement>(null);
-  const bgmListRef  = useRef<string[]>([]);
-  const bgmIndexRef = useRef(0);
+  const audioRef      = useRef<HTMLAudioElement>(null);
+  const bgmListRef    = useRef<string[]>([]);
+  const bgmIndexRef   = useRef(0);
+  // Web Audio API refs — enables volume control on mobile (iOS)
+  const audioCtxRef   = useRef<AudioContext | null>(null);
+  const gainNodeRef   = useRef<GainNode | null>(null);
+  const gainValueRef  = useRef(0.3); // desired gain before AudioContext exists
+
+  /** Lazily create (or resume) the Web Audio graph on first user interaction. */
+  function ensureAudioGraph() {
+    if (audioCtxRef.current) {
+      if (audioCtxRef.current.state === "suspended") audioCtxRef.current.resume();
+      return;
+    }
+    const audio = audioRef.current;
+    if (!audio) return;
+    const ctx = new (window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+    const gain = ctx.createGain();
+    gain.gain.value = gainValueRef.current;
+    const source = ctx.createMediaElementSource(audio);
+    source.connect(gain);
+    gain.connect(ctx.destination);
+    // Hand volume control entirely to the gain node
+    try { audio.volume = 1; } catch (_) {}
+    audioCtxRef.current = ctx;
+    gainNodeRef.current = gain;
+    ctx.resume();
+  }
 
   const playTrack = useCallback((index: number) => {
     const audio = audioRef.current;
     if (!audio || bgmListRef.current.length === 0) return;
-    audio.src    = `/bgm/${bgmListRef.current[index]}`;
-    audio.volume = 0.3;
+    audio.src = `/bgm/${bgmListRef.current[index]}`;
+    // Set element volume only as fallback before Web Audio is initialised
+    try { audio.volume = gainValueRef.current; } catch (_) {}
     audio.play().catch(() => setVolumeState("off"));
   }, []);
 
   const cycleVolume = () => {
-    const audio = audioRef.current;
-    if (!audio) return;
+    ensureAudioGraph();
+    const gain = gainNodeRef.current;
     if (volumeState === "full") {
-      audio.volume = 0.15;
+      gainValueRef.current = 0.15;
+      if (gain) gain.gain.value = 0.15;
+      else try { if (audioRef.current) audioRef.current.volume = 0.15; } catch (_) {}
       setVolumeState("half");
     } else if (volumeState === "half") {
-      audio.pause();
+      gainValueRef.current = 0;
+      if (gain) gain.gain.value = 0;
+      audioRef.current?.pause();
       setVolumeState("off");
     } else {
-      audio.volume = 0.3;
-      audio.play().catch(() => {});
+      gainValueRef.current = 0.3;
+      if (gain) gain.gain.value = 0.3;
+      else try { if (audioRef.current) audioRef.current.volume = 0.3; } catch (_) {}
+      audioRef.current?.play().catch(() => {});
       setVolumeState("full");
     }
   };
@@ -158,6 +198,8 @@ export default function Home() {
         }}
       />
 
+      <LanguageSwitcher />
+
       <button
         onClick={cycleVolume}
         aria-label="Cycle volume"
@@ -182,10 +224,10 @@ export default function Home() {
         </AnimatePresence>
 
         <div data-ascii-mask className="sticky top-0 z-20 bg-transparent h-12 flex justify-evenly items-center">
-          {TABS.map((label, index) => {
+          {t.tabs.map((label, index) => {
             const isSelected = selectedIndex === index;
             return (
-              <button key={label} onClick={() => setSelectedIndex(index)} className="text-center">
+              <button key={index} onClick={() => setSelectedIndex(index)} className="text-center">
                 <span className={isSelected ? "text-white font-bold" : "text-gray-400 font-normal"}>
                   {label}
                 </span>
@@ -223,3 +265,4 @@ export default function Home() {
     </motion.div>
   );
 }
+

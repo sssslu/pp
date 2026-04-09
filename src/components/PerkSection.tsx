@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { motion, Variants } from "framer-motion";
+import { useLanguage } from "@/i18n";
 
 const SKILLS = [
   "C", "C#", "Java", "Dart", "React", "Flutter",
@@ -10,6 +11,7 @@ const SKILLS = [
 ];
 
 export default function PerkSection() {
+  const { t } = useLanguage();
   const [isRevealed, setIsRevealed] = useState(false);
 
   // 각 스킬 아이템별로 폭발/붕괴 효과를 위한 랜덤 값을 생성합니다.
@@ -44,11 +46,9 @@ export default function PerkSection() {
     <div className="w-full">
       <div className="max-w-3xl mx-auto px-8 py-4">
         <div className="py-4">
-          <h2 className="text-xl font-bold text-white">강점</h2>
+          <h2 className="text-xl font-bold text-white">{t.perk.strengthsTitle}</h2>
           <p className="mt-2 text-gray-300 whitespace-pre-line">
-            - 창의성
-            <br />- 책임감
-            <br />- 능통한 영어 / 한국어
+            {t.perk.strengths.map((s) => `- ${s}`).join("\n")}
           </p>
         </div>
         <div 
@@ -57,7 +57,7 @@ export default function PerkSection() {
           onTouchStart={() => setIsRevealed(true)}
           onClick={() => setIsRevealed(true)}
         >
-          <h2 className="text-xl font-bold text-white mb-4 transition-colors duration-300">스택</h2>
+          <h2 className="text-xl font-bold text-white mb-4 transition-colors duration-300">{t.perk.stackTitle}</h2>
           
           {/* 스킬 목록 컨테이너 */}
           <div className="relative min-h-[400px]">

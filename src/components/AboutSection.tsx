@@ -2,6 +2,7 @@
 
 import { useState, createContext, useContext } from "react";
 import Image from "next/image";
+import { useLanguage } from "@/i18n";
 
 const RevealContext = createContext<{ isRevealed: boolean; reveal: () => void } | null>(null);
 
@@ -65,42 +66,68 @@ function RedactedImage({ src, alt, width, height, className }: { src: string, al
 }
 
 export default function AboutSection() {
+  const { t, locale } = useLanguage();
+  const isEn = locale === "en";
   return (
     <div className="w-full">
       <div className="max-w-3xl mx-auto px-8 py-4">
         <div className="py-4">
-          <h2 className="text-xl font-bold text-white">학력과 경력</h2>
+          <h2 className="text-xl font-bold text-white">{t.about.educationTitle}</h2>
           <div className="mt-2 flex flex-col items-start gap-1 text-gray-300">
             <RevealGroup>
               <p>
-                - <RedactedItem text="창원남고등학교" /> 졸업 / <RedactedItem text="창원남고 단결정 연구 동아리" /> 활동 및 다회 수상
+                {isEn ? (
+                  <>- Graduated from <RedactedItem text="Changwonnam High School" /> / Active in <RedactedItem text="Single Crystal Research Club" /></>
+                ) : (
+                  <>- <RedactedItem text="창원남고등학교" /> 졸업 / <RedactedItem text="창원남고 단결정 연구 동아리" /> 활동 </>
+                )}
               </p>
               <p>
-                - <RedactedItem text="서울과학기술대학교" /> <RedactedItem text="전자IT미디어공학과" /> 졸업
+                {isEn ? (
+                  <>- Graduated from <RedactedItem text="Seoul National University of Science and Technology" /> — <RedactedItem text="Electronic IT Media Engineering" /></>
+                ) : (
+                  <>- <RedactedItem text="서울과학기술대학교" /> <RedactedItem text="전자IT미디어공학과" /> 졸업</>
+                )}
               </p>
             </RevealGroup>
             <RevealGroup>
               <p>
-                - <RedactedItem text="용산 KATUSA" /><RedactedItem text="Military Police" /> 만기 전역
+                {isEn ? (
+                  <>- <RedactedItem text="Yongsan KATUSA" /> <RedactedItem text="Military Police" /> — Honorably discharged</>
+                ) : (
+                  <>- <RedactedItem text="용산 KATUSA" /><RedactedItem text="Military Police" /> 만기 전역</>
+                )}
               </p>
             </RevealGroup>
             <RevealGroup>
               <p>
-                - <RedactedItem text="태화이노베이션" /> <RedactedItem text="R&D 소프트웨어 연구소" /> 연구원
+                {isEn ? (
+                  <>- <RedactedItem text="TaehwaInnovation" /> <RedactedItem text="R&D Software Lab" /> — Researcher</>
+                ) : (
+                  <>- <RedactedItem text="태화이노베이션" /> <RedactedItem text="R&D 소프트웨어 연구소" /> 연구원</>
+                )}
               </p>
               <p>
-                - <RedactedItem text="싱가폴 암호화폐 거래소 Bitget" /> 에서 <RedactedItem text="커미션직" />으로 근무
+                {isEn ? (
+                  <>- Worked at <RedactedItem text="Singapore crypto exchange Bitget" /> in a <RedactedItem text="commission-based role" /></>
+                ) : (
+                  <>- <RedactedItem text="싱가폴 암호화폐 거래소 Bitget" /> 에서 <RedactedItem text="커미션직" />으로 근무</>
+                )}
               </p>
             </RevealGroup>
           </div>
         </div>
         <div className="py-6">
-          <h2 className="text-xl font-bold text-white">경험</h2>
+          <h2 className="text-xl font-bold text-white">{t.about.experienceTitle}</h2>
           <div className="mt-2 flex flex-col items-start gap-1 text-gray-300">
             <RevealGroup>
               <div>
                 <p>
-                  - <RedactedItem text="GPT API, Python" />, 자동화 시스템을 활용해 <RedactedItem text="실제 트레이딩 시스템" />을 구현하고 운영한 경험이 있습니다. <RedactedItem text="(강의로 만들어 인프런에 팔아먹었습니다!)" />
+                  {isEn ? (
+                    <>- Used <RedactedItem text="GPT API, Python" /> and automation systems to build and operate a <RedactedItem text="real trading system" />. <RedactedItem text="(Turned it into a course and sold it on Inflearn!)" /></>
+                  ) : (
+                    <>- <RedactedItem text="GPT API, Python" />, 자동화 시스템을 활용해 <RedactedItem text="실제 트레이딩 시스템" />을 구현하고 운영한 경험이 있습니다. <RedactedItem text="(강의로 만들어 인프런에 팔아먹었습니다!)" /></>
+                  )}
                 </p>
               <div className="flex flex-col items-start ml-10 mt-1">
                 <svg width="70" height="70" viewBox="0 0 100 100" className="ml-36 -mt-2 text-red-500 fill-none stroke-current stroke-[3px] drop-shadow-lg transform -rotate-12">
@@ -112,34 +139,51 @@ export default function AboutSection() {
                   rel="noopener noreferrer"
                   className="relative ml-24 mb-12 transform hover:scale-105 transition-all duration-300 border-4 border-white rounded-lg shadow-2xl overflow-hidden block"
                 >
-                  {/* 확장자가 png가 아니라면 아래 경로를 수정해주세요 (예: /인프런인증.jpg) */}
-                  <RedactedImage src="/images/인프런인증.png" alt="인프런 인증" width={300} height={200} className="object-cover" />
+                  <RedactedImage src="/images/인프런인증.png" alt="Inflearn certification" width={300} height={200} className="object-cover" />
                 </a>
               </div>
               </div>
             </RevealGroup>
             <RevealGroup>
               <p>
-                - iOS 및 Android용 모바일 앱을 설계하고 배포한 경험이 있습니다.
+                {isEn
+                  ? "- Designed and deployed mobile apps for iOS and Android."
+                  : "- iOS 및 Android용 모바일 앱을 설계하고 배포한 경험이 있습니다."}
               </p>
             </RevealGroup>
             <RevealGroup>
               <p>
-                - <RedactedItem text="우리은행" /> 사서 프로그램 <RedactedItem text="Fever" /> 와 <RedactedItem text="농협은행" /> 고속 스캔 프로그램 <RedactedItem text="DASS" /> 를 유지보수한 경험이 있습니다.
+                {isEn ? (
+                  <>- Maintained <RedactedItem text="Woori Bank" />&apos;s library program <RedactedItem text="Fever" /> and <RedactedItem text="NongHyup Bank" />&apos;s high-speed scanning program <RedactedItem text="DASS" />.</>
+                ) : (
+                  <>- <RedactedItem text="우리은행" /> 사서 프로그램 <RedactedItem text="Fever" /> 와 <RedactedItem text="농협은행" /> 고속 스캔 프로그램 <RedactedItem text="DASS" /> 를 유지보수한 경험이 있습니다.</>
+                )}
               </p>
               <p>
-                - <RedactedItem text="한국의 개발 관련 연구소" />에서 여러가지 <RedactedItem text="실험적인 프로젝트" />에서 활동한 경험이 있습니다.
+                {isEn ? (
+                  <>- Participated in various <RedactedItem text="experimental projects" /> at a <RedactedItem text="Korean R&D research institute" />.</>
+                ) : (
+                  <>- <RedactedItem text="한국의 개발 관련 연구소" />에서 여러가지 <RedactedItem text="실험적인 프로젝트" />에서 활동한 경험이 있습니다.</>
+                )}
               </p>
             </RevealGroup>
             <RevealGroup>
               <p>
-                - <RedactedItem text="대형 암호화폐 거래소" />에서 <RedactedItem text="고액의 커미션" />을 받고 <RedactedItem text="핵심 업무" />를 수행한 경험이 있습니다.
+                {isEn ? (
+                  <>- Performed <RedactedItem text="core duties" /> at a <RedactedItem text="major crypto exchange" /> under <RedactedItem text="high commissions" />.</>
+                ) : (
+                  <>- <RedactedItem text="대형 암호화폐 거래소" />에서 <RedactedItem text="고액의 커미션" />을 받고 <RedactedItem text="핵심 업무" />를 수행한 경험이 있습니다.</>
+                )}
               </p>
             </RevealGroup>
             <RevealGroup>
               <div className="flex items-center">
                 <p>
-                  - <RedactedItem text="과학 유투버" />로 활동한 경험이 있습니다!
+                  {isEn ? (
+                    <>- Worked as a <RedactedItem text="Science YouTuber" />!</>
+                  ) : (
+                    <>- <RedactedItem text="과학 유투버" />로 활동한 경험이 있습니다!</>
+                  )}
                 </p>
                 <div className="flex items-center ml-2">
                   <svg width="50" height="20" viewBox="0 0 50 20" className="text-red-500 fill-none stroke-current stroke-[3px] drop-shadow-lg">
@@ -151,7 +195,7 @@ export default function AboutSection() {
                     rel="noopener noreferrer"
                     className="relative ml-2 transform hover:scale-105 transition-all duration-300 border-4 border-white rounded-lg shadow-2xl overflow-hidden block"
                   >
-                    <RedactedImage src="/images/과학쪼가리.png" alt="과학 유투버" width={100} height={75} className="object-cover" />
+                    <RedactedImage src="/images/과학쪼가리.png" alt="Science YouTuber" width={100} height={75} className="object-cover" />
                   </a>
                 </div>
               </div>
