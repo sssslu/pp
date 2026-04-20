@@ -294,7 +294,7 @@ function BackgroundMatrix() {
       const shapeIdx = Math.floor(Math.random() * SHAPES.length);
       const baseSize = i === 0 ? 450
                      : i <  3 ? Math.random() * 150 + 300
-                               : Math.random() * 120 + 50;
+                               : Math.random() * 120 + 120;
       const size = baseSize * (SHAPE_SCALE[shapeIdx] ?? 1);
       return {
         size,
@@ -425,7 +425,7 @@ function BackgroundMatrix() {
       const projected = bubbles.map((b) => {
         const { cx, cy } = updateBubble(b, t);
         const r = effRadius(b);
-        const edgeW = Math.max(CELL * 1.0, r * 0.07);
+        const edgeW = Math.max(CELL * 0.5, r * 0.035);
         const { edges, boundR } = projectShape(SHAPES[b.shape], t, b, cx, cy, r);
         return { cx, cy, boundR, color: b.color, edges, edgeWSq: edgeW * edgeW, outerSq: (boundR + CELL * 2) ** 2 };
       });
@@ -477,7 +477,7 @@ function BackgroundMatrix() {
           }
 
           if (wireColor) {
-            ctx.globalAlpha = 0.85;
+            ctx.globalAlpha = 1;
             ctx.fillStyle   = wireColor;
             ctx.fillText(nextBubbleCh(), col * CELL, row * CELL);
           } else {
