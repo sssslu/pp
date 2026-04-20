@@ -373,12 +373,35 @@ function BackgroundMatrix() {
       }
     };
 
+    // ── 리플 시스템 ─────────────────────────────────────────────────
+
+    interface Ripple { x: number; y: number; birth: number; speed: number; maxR: number; band: number; }
+    const ripples: Ripple[] = [];
+    const RIPPLE_COLOR      = "#22d3ee"; // 형광 하늘색 (cyan-400)
+    const RIPPLE_BAND_THICK = 180;       // 꾹 누름 파동 띠 두께(px)
+    const RIPPLE_BAND_THIN  = 25;        // 일반 클릭 파동 띠 두께(px)
+    const RIPPLE_SPEED      = 600;       // px/s
+    const RIPPLE_LIFESPAN   = 2.5;       // 초
+
+    const onRipple = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      const diag = Math.sqrt(canvas.width ** 2 + canvas.height ** 2);
+      const band = detail.band ?? (detail.thin ? RIPPLE_BAND_THIN : RIPPLE_BAND_THICK);
+      ripples.push({ x: detail.x, y: detail.y, birth: performance.now() / 1000, speed: RIPPLE_SPEED, maxR: diag + band, band });
+    };
+    window.addEventListener("ascii-ripple", onRipple);
+
     // ── 렌더링 ────────────────────────────────────────────────────────
 
     const draw = (t: number) => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.font         = `${CELL}px monospace`;
       ctx.textBaseline = "top";
+
+      // 만료된 리플 제거
+      for (let i = ripples.length - 1; i >= 0; i--) {
+        if (t - ripples[i].birth > RIPPLE_LIFESPAN) ripples.splice(i, 1);
+      }
 
       // 프레임마다 각 도형의 와이어프레임 엣지를 미리 계산
       const projected = bubbles.map((b) => {
@@ -392,10 +415,33 @@ function BackgroundMatrix() {
       for (let row = 0; row < rows; row++) {
         for (let col = 0; col < cols; col++) {
           const cell = cells[row][col];
-          if (cell.ch === " ") continue;
 
           const px = col * CELL + CELL / 2;
           const py = row * CELL + CELL / 2;
+
+          // 리플 영향 계산
+          let rippleAlpha = 0;
+          for (const rp of ripples) {
+            const age   = t - rp.birth;
+            const front = age * rp.speed;
+            const dx    = px - rp.x, dy = py - rp.y;
+            const dist  = Math.sqrt(dx * dx + dy * dy);
+            const diff  = Math.abs(dist - front);
+            if (diff < rp.band) {
+              rippleAlpha = 1;
+            }
+          }
+
+          // 리플이 지나는 셀은 항상 문자를 채워서 파동이 보이게
+          if (rippleAlpha > 0.05) {
+            const ch = randItem(BUBBLE_CHARS);
+            ctx.globalAlpha = rippleAlpha;
+            ctx.fillStyle   = RIPPLE_COLOR;
+            ctx.fillText(ch, col * CELL, row * CELL);
+            continue; // 리플이 최우선
+          }
+
+          if (cell.ch === " ") continue;
 
           let wireColor: string | null = null;
           for (const s of projected) {
@@ -447,6 +493,7 @@ function BackgroundMatrix() {
       window.removeEventListener("resize",    resize);
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("ascii-ripple", onRipple);
     };
   }, []);
 

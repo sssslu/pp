@@ -95,6 +95,12 @@ function HomeInner() {
   const gainNodeRef   = useRef<GainNode | null>(null);
   const gainValueRef  = useRef(0.3); // desired gain before AudioContext exists
 
+  // Long-press refs
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isLongPress    = useRef(false);
+  const pressCoords    = useRef({ x: 0, y: 0 });
+  const LONG_PRESS_MS  = 600;
+
   /** Lazily create (or resume) the Web Audio graph on first user interaction. */
   function ensureAudioGraph() {
     if (audioCtxRef.current) {
@@ -148,6 +154,88 @@ function HomeInner() {
     }
   };
 
+  /** 랜덤 다른 곡으로 크로스페이드 전환 */
+  const skipToRandomTrack = useCallback((originX: number, originY: number) => {
+    const list = bgmListRef.current;
+    if (list.length < 2) return;
+
+    // 리플 이벤트 발사
+    window.dispatchEvent(new CustomEvent("ascii-ripple", { detail: { x: originX, y: originY } }));
+
+    // 현재와 다른 랜덤 인덱스
+    let next = bgmIndexRef.current;
+    while (next === bgmIndexRef.current) next = Math.floor(Math.random() * list.length);
+
+    // 볼륨 페이드아웃 → 곡 교체 → 페이드인
+    const gain = gainNodeRef.current;
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const savedGain = gainValueRef.current;
+    const FADE_MS   = 800;
+    const steps     = 20;
+    let step        = 0;
+
+    // fade out
+    const fadeOut = setInterval(() => {
+      step++;
+      const v = savedGain * (1 - step / steps);
+      if (gain) gain.gain.value = v;
+      else try { audio.volume = v; } catch (_) {}
+      if (step >= steps) {
+        clearInterval(fadeOut);
+        // swap track
+        bgmIndexRef.current = next;
+        audio.src = `/bgm/${list[next]}`;
+        audio.play().catch(() => {});
+        // fade in
+        let stepIn = 0;
+        const fadeIn = setInterval(() => {
+          stepIn++;
+          const v2 = savedGain * (stepIn / steps);
+          if (gain) gain.gain.value = v2;
+          else try { audio.volume = v2; } catch (_) {}
+          if (stepIn >= steps) {
+            clearInterval(fadeIn);
+            if (gain) gain.gain.value = savedGain;
+            else try { audio.volume = savedGain; } catch (_) {}
+          }
+        }, FADE_MS / steps);
+      }
+    }, FADE_MS / steps);
+  }, []);
+
+  // ── Long-press handlers ───────────────────────────────────────────
+
+  const handlePressStart = useCallback((clientX: number, clientY: number) => {
+    isLongPress.current = false;
+    pressCoords.current = { x: clientX, y: clientY };
+    longPressTimer.current = setTimeout(() => {
+      isLongPress.current = true;
+      ensureAudioGraph();
+      skipToRandomTrack(clientX, clientY);
+    }, LONG_PRESS_MS);
+  }, [skipToRandomTrack]);
+
+  const handlePressEnd = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }, []);
+
+  const handleClick = useCallback(() => {
+    if (isLongPress.current) {
+      isLongPress.current = false;
+      return; // 롱프레스였으면 일반 클릭 무시
+    }
+    // 얇은 리플 발사
+    window.dispatchEvent(new CustomEvent("ascii-ripple", {
+      detail: { x: pressCoords.current.x, y: pressCoords.current.y, thin: true },
+    }));
+    cycleVolume();
+  }, [volumeState]); // cycleVolume depends on volumeState
+
   useEffect(() => {
     fetch("/api/bgm")
       .then((r) => r.json())
@@ -169,6 +257,25 @@ function HomeInner() {
         if (!(err instanceof DOMException && err.name === "AbortError")) setViewCount(0);
       });
     return () => controller.abort();
+  }, []);
+
+  // ── 화면 아무 곳 클릭/터치 시 미세 리플 ──────────────────────────
+  useEffect(() => {
+    const fireMiniRipple = (x: number, y: number) => {
+      window.dispatchEvent(new CustomEvent("ascii-ripple", {
+        detail: { x, y, band: 15 },
+      }));
+    };
+    const onClick = (e: MouseEvent) => fireMiniRipple(e.clientX, e.clientY);
+    const onTouch = (e: TouchEvent) => {
+      if (e.touches.length > 0) fireMiniRipple(e.touches[0].clientX, e.touches[0].clientY);
+    };
+    window.addEventListener("click", onClick, { passive: true });
+    window.addEventListener("touchstart", onTouch, { passive: true });
+    return () => {
+      window.removeEventListener("click", onClick);
+      window.removeEventListener("touchstart", onTouch);
+    };
   }, []);
 
   const isGalleryTab = selectedIndex === 4;
@@ -203,9 +310,19 @@ function HomeInner() {
       <LanguageSwitcher />
 
       <button
-        onClick={cycleVolume}
+        onClick={handleClick}
+        onMouseDown={(e) => handlePressStart(e.clientX, e.clientY)}
+        onMouseUp={handlePressEnd}
+        onMouseLeave={handlePressEnd}
+        onTouchStart={(e) => {
+          const t = e.touches[0];
+          handlePressStart(t.clientX, t.clientY);
+        }}
+        onTouchEnd={handlePressEnd}
+        onTouchCancel={handlePressEnd}
+        onContextMenu={(e) => e.preventDefault()}
         aria-label="Cycle volume"
-        className={`fixed bottom-8 right-8 z-50 flex items-center justify-center w-14 h-14 rounded-xl border-2 transition-all duration-300 backdrop-blur-md ${VOLUME_BTN[volumeState]}`}
+        className={`fixed bottom-8 right-8 z-50 flex items-center justify-center w-14 h-14 rounded-xl border-2 transition-all duration-300 backdrop-blur-md select-none ${VOLUME_BTN[volumeState]}`}
       >
         {volumeState === "full" ? <MusicOnIcon /> : volumeState === "half" ? <MusicHalfIcon /> : <MusicOffIcon />}
       </button>
