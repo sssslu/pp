@@ -99,6 +99,7 @@ function HomeInner() {
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isLongPress    = useRef(false);
   const pressCoords    = useRef({ x: 0, y: 0 });
+  const cooldownUntil  = useRef(0);
   const LONG_PRESS_MS  = 600;
 
   /** Lazily create (or resume) the Web Audio graph on first user interaction. */
@@ -212,6 +213,7 @@ function HomeInner() {
     pressCoords.current = { x: clientX, y: clientY };
     longPressTimer.current = setTimeout(() => {
       isLongPress.current = true;
+      cooldownUntil.current = Date.now() + 200;
       ensureAudioGraph();
       skipToRandomTrack(clientX, clientY);
     }, LONG_PRESS_MS);
@@ -225,9 +227,9 @@ function HomeInner() {
   }, []);
 
   const handleClick = useCallback(() => {
-    if (isLongPress.current) {
+    if (isLongPress.current || Date.now() < cooldownUntil.current) {
       isLongPress.current = false;
-      return; // 롱프레스였으면 일반 클릭 무시
+      return; // 롱프레스였거나 쿨다운 중이면 무시
     }
     // 얇은 리플 발사
     window.dispatchEvent(new CustomEvent("ascii-ripple", {

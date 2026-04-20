@@ -375,21 +375,30 @@ function BackgroundMatrix() {
 
     // ── 리플 시스템 ─────────────────────────────────────────────────
 
-    interface Ripple { x: number; y: number; birth: number; speed: number; maxR: number; band: number; }
+    interface Ripple { x: number; y: number; birth: number; speed: number; maxR: number; band: number; life: number; }
     const ripples: Ripple[] = [];
     const RIPPLE_COLOR      = "#22d3ee"; // 형광 하늘색 (cyan-400)
     const RIPPLE_BAND_THICK = 180;       // 꾹 누름 파동 띠 두께(px)
     const RIPPLE_BAND_THIN  = 25;        // 일반 클릭 파동 띠 두께(px)
     const RIPPLE_SPEED      = 600;       // px/s
-    const RIPPLE_LIFESPAN   = 2.5;       // 초
 
     const onRipple = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      const diag = Math.sqrt(canvas.width ** 2 + canvas.height ** 2);
       const band = detail.band ?? (detail.thin ? RIPPLE_BAND_THIN : RIPPLE_BAND_THICK);
-      ripples.push({ x: detail.x, y: detail.y, birth: performance.now() / 1000, speed: RIPPLE_SPEED, maxR: diag + band, band });
+      const dx = Math.max(detail.x, canvas.width - detail.x);
+      const dy = Math.max(detail.y, canvas.height - detail.y);
+      const maxDist = Math.sqrt(dx * dx + dy * dy) + band;
+      const lifespan = maxDist / RIPPLE_SPEED + 0.1;
+      ripples.push({ x: detail.x, y: detail.y, birth: performance.now() / 1000, speed: RIPPLE_SPEED, maxR: maxDist, band, life: lifespan });
     };
     window.addEventListener("ascii-ripple", onRipple);
+
+    // ── Pre-pick 문자 배열 (hot loop에서 randItem 대신 순환 인덱스 사용) ──
+
+    const BUBBLE_PICK_LEN = 256;
+    const bubblePick: string[] = Array.from({ length: BUBBLE_PICK_LEN }, () => randItem(BUBBLE_CHARS));
+    let pickIdx = 0;
+    const nextBubbleCh = () => bubblePick[(pickIdx++) & 255];
 
     // ── 렌더링 ────────────────────────────────────────────────────────
 
@@ -400,8 +409,17 @@ function BackgroundMatrix() {
 
       // 만료된 리플 제거
       for (let i = ripples.length - 1; i >= 0; i--) {
-        if (t - ripples[i].birth > RIPPLE_LIFESPAN) ripples.splice(i, 1);
+        if (t - ripples[i].birth > ripples[i].life) ripples.splice(i, 1);
       }
+
+      // 리플 프레임 데이터 미리 계산 (inner² / outer² for fast reject)
+      const rippleFrames = ripples.map(rp => {
+        const front = (t - rp.birth) * rp.speed;
+        const inner = front - rp.band;
+        const outer = front + rp.band;
+        return { x: rp.x, y: rp.y, innerSq: inner > 0 ? inner * inner : 0, outerSq: outer * outer, hasInner: inner > 0 };
+      });
+      const hasRipples = rippleFrames.length > 0;
 
       // 프레임마다 각 도형의 와이어프레임 엣지를 미리 계산
       const projected = bubbles.map((b) => {
@@ -409,51 +427,48 @@ function BackgroundMatrix() {
         const r = effRadius(b);
         const edgeW = Math.max(CELL * 1.0, r * 0.07);
         const { edges, boundR } = projectShape(SHAPES[b.shape], t, b, cx, cy, r);
-        return { cx, cy, boundR, color: b.color, edges, edgeWSq: edgeW * edgeW };
+        return { cx, cy, boundR, color: b.color, edges, edgeWSq: edgeW * edgeW, outerSq: (boundR + CELL * 2) ** 2 };
       });
 
       for (let row = 0; row < rows; row++) {
+        const py = row * CELL + CELL / 2;
         for (let col = 0; col < cols; col++) {
-          const cell = cells[row][col];
-
           const px = col * CELL + CELL / 2;
-          const py = row * CELL + CELL / 2;
 
-          // 리플 영향 계산
-          let rippleAlpha = 0;
-          for (const rp of ripples) {
-            const age   = t - rp.birth;
-            const front = age * rp.speed;
-            const dx    = px - rp.x, dy = py - rp.y;
-            const dist  = Math.sqrt(dx * dx + dy * dy);
-            const diff  = Math.abs(dist - front);
-            if (diff < rp.band) {
-              rippleAlpha = 1;
+          // 리플 영향 계산 (squared distance로 빠른 판별)
+          if (hasRipples) {
+            let hit = false;
+            for (let ri = 0; ri < rippleFrames.length; ri++) {
+              const rf = rippleFrames[ri];
+              const dx = px - rf.x, dy = py - rf.y;
+              const distSq = dx * dx + dy * dy;
+              if (distSq <= rf.outerSq && (!rf.hasInner || distSq >= rf.innerSq)) {
+                hit = true;
+                break;
+              }
+            }
+            if (hit) {
+              ctx.globalAlpha = 1;
+              ctx.fillStyle   = RIPPLE_COLOR;
+              ctx.fillText(nextBubbleCh(), col * CELL, row * CELL);
+              continue;
             }
           }
 
-          // 리플이 지나는 셀은 항상 문자를 채워서 파동이 보이게
-          if (rippleAlpha > 0.05) {
-            const ch = randItem(BUBBLE_CHARS);
-            ctx.globalAlpha = rippleAlpha;
-            ctx.fillStyle   = RIPPLE_COLOR;
-            ctx.fillText(ch, col * CELL, row * CELL);
-            continue; // 리플이 최우선
-          }
-
+          const cell = cells[row][col];
           if (cell.ch === " ") continue;
 
           let wireColor: string | null = null;
-          for (const s of projected) {
-            // 바운딩 서클로 빠른 거부
+          for (let si = 0; si < projected.length; si++) {
+            const s = projected[si];
             const dx = px - s.cx, dy = py - s.cy;
             const distSq = dx * dx + dy * dy;
-            const outer = s.boundR + CELL * 2;
-            if (distSq > outer * outer) continue;
+            if (distSq > s.outerSq) continue;
 
-            // 엣지 근접 확인
-            for (const [x1, y1, x2, y2] of s.edges) {
-              if (distToSegSq(px, py, x1, y1, x2, y2) < s.edgeWSq) {
+            const edges = s.edges;
+            for (let ei = 0; ei < edges.length; ei++) {
+              const e = edges[ei];
+              if (distToSegSq(px, py, e[0], e[1], e[2], e[3]) < s.edgeWSq) {
                 wireColor = s.color;
                 break;
               }
@@ -464,7 +479,7 @@ function BackgroundMatrix() {
           if (wireColor) {
             ctx.globalAlpha = 0.85;
             ctx.fillStyle   = wireColor;
-            ctx.fillText(randItem(BUBBLE_CHARS), col * CELL, row * CELL);
+            ctx.fillText(nextBubbleCh(), col * CELL, row * CELL);
           } else {
             ctx.globalAlpha = cell.alpha;
             ctx.fillStyle   = cell.color;
