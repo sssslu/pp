@@ -1,17 +1,19 @@
 ﻿"use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import AboutSection from "@/components/AboutSection";
-import GallerySection from "@/components/GallerySection";
+import dynamic from "next/dynamic";
 import HeroSection from "@/components/HeroSection";
-import HobbySection from "@/components/HobbySection";
-import PerkSection from "@/components/PerkSection";
-import ProjectsSection from "@/components/ProjectsSection";
-import ContactFooter from "@/components/ContactFooter";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { motion, AnimatePresence } from "framer-motion";
 import FloatingBubbles from "@/components/FloatingBubbles";
 import { LanguageProvider, useLanguage } from "@/i18n";
+
+const AboutSection    = dynamic(() => import("@/components/AboutSection"),    { ssr: false });
+const GallerySection  = dynamic(() => import("@/components/GallerySection"),  { ssr: false });
+const HobbySection    = dynamic(() => import("@/components/HobbySection"),    { ssr: false });
+const PerkSection     = dynamic(() => import("@/components/PerkSection"),     { ssr: false });
+const ProjectsSection = dynamic(() => import("@/components/ProjectsSection"), { ssr: false });
+const ContactFooter   = dynamic(() => import("@/components/ContactFooter"),   { ssr: false });
 
 const PAGE_VARIANTS = {
   initial: { opacity: 0, y: 20 },

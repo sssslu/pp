@@ -114,6 +114,7 @@ function CategoryItem({ category, item, onClick, variants }: CategoryItemProps) 
           src={item.url}
           alt={category}
           fill
+          loading="lazy"
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
           className={`object-cover transition-opacity duration-1000 ease-in-out ${isLoaded ? "opacity-60 group-hover:opacity-100" : "opacity-0"}`}
           onLoad={() => setIsLoaded(true)}
@@ -146,6 +147,7 @@ function GalleryImageItem({ item, onClick, variants }: GalleryImageItemProps) {
           src={item.url}
           alt={item.description}
           fill
+          loading="lazy"
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
           className={`object-cover transition-opacity duration-700 ease-in-out ${isLoaded ? "opacity-100" : "opacity-0"}`}
           onLoad={() => setIsLoaded(true)}
@@ -188,7 +190,7 @@ export default function GallerySection() {
             onClick={() => setSelectedItem(null)}
           >
             <div className="relative max-w-5xl w-full h-[75vh] flex items-center justify-center">
-              <img src={selectedItem.url} alt={selectedItem.description} className="max-w-full max-h-full object-contain" />
+              <img src={selectedItem.url} alt={selectedItem.description} loading="lazy" className="max-w-full max-h-full object-contain" />
             </div>
             <div className="mt-6 max-w-3xl text-center" onClick={(e) => e.stopPropagation()}>
               <p className="text-white text-lg font-medium bg-gray-900/80 px-6 py-3 rounded-xl backdrop-blur-sm border border-gray-700">{selectedItem.description}</p>

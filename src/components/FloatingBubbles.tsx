@@ -22,9 +22,96 @@ const MAX_REPULSION     = 650;
 const LERP              = 0.05;
 
 const MOBILE_BREAKPOINT = 768; // 이 너비 이하를 모바일로 간주
-const MOBILE_SIZE_MULT  = 0.25; // 버블 크기 배율
-const MOBILE_SPEED_MULT = 2.5;  // 이동 속도 배율
-const MOBILE_AMP_MULT   = 0.5;  // 진폭 배율
+
+// ── 기하학적 도형 정의 ───────────────────────────────────────────────
+
+interface ShapeDef {
+  vertices: number[][];
+  edges: [number, number][];
+  dim: 3 | 4;
+}
+
+// 정육면체 (꼭짓점 단위 구에 정규화)
+const C = 1 / Math.sqrt(3);
+const CUBE: ShapeDef = {
+  dim: 3,
+  vertices: [
+    [-C,-C,-C],[C,-C,-C],[C,C,-C],[-C,C,-C],
+    [-C,-C, C],[C,-C, C],[C,C, C],[-C,C, C],
+  ],
+  edges: [
+    [0,1],[1,2],[2,3],[3,0],
+    [4,5],[5,6],[6,7],[7,4],
+    [0,4],[1,5],[2,6],[3,7],
+  ],
+};
+
+// 정팔면체
+const OCTAHEDRON: ShapeDef = {
+  dim: 3,
+  vertices: [
+    [1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1],
+  ],
+  edges: [
+    [0,2],[0,3],[0,4],[0,5],
+    [1,2],[1,3],[1,4],[1,5],
+    [2,4],[2,5],[3,4],[3,5],
+  ],
+};
+
+// 정이십면체
+const PHI = (1 + Math.sqrt(5)) / 2;
+const ICO_RAW: number[][] = [
+  [0,1,PHI],[0,-1,PHI],[0,1,-PHI],[0,-1,-PHI],
+  [1,PHI,0],[-1,PHI,0],[1,-PHI,0],[-1,-PHI,0],
+  [PHI,0,1],[-PHI,0,1],[PHI,0,-1],[-PHI,0,-1],
+];
+const ICO_VERTS = ICO_RAW.map(v => {
+  const len = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+  return [v[0] / len, v[1] / len, v[2] / len];
+});
+const ICO_EDGE_LEN = (() => {
+  const d = [
+    ICO_VERTS[0][0] - ICO_VERTS[1][0],
+    ICO_VERTS[0][1] - ICO_VERTS[1][1],
+    ICO_VERTS[0][2] - ICO_VERTS[1][2],
+  ];
+  return Math.sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+})();
+const ICO_EDGES: [number, number][] = [];
+for (let i = 0; i < 12; i++) {
+  for (let j = i + 1; j < 12; j++) {
+    const dx = ICO_VERTS[i][0] - ICO_VERTS[j][0];
+    const dy = ICO_VERTS[i][1] - ICO_VERTS[j][1];
+    const dz = ICO_VERTS[i][2] - ICO_VERTS[j][2];
+    if (Math.abs(Math.sqrt(dx * dx + dy * dy + dz * dz) - ICO_EDGE_LEN) < 0.01) {
+      ICO_EDGES.push([i, j]);
+    }
+  }
+}
+const ICOSAHEDRON: ShapeDef = { dim: 3, vertices: ICO_VERTS, edges: ICO_EDGES };
+
+// 테서랙트 (4D 하이퍼큐브)
+const TESSERACT: ShapeDef = {
+  dim: 4,
+  vertices: Array.from({ length: 16 }, (_, i) => [
+    (i & 1) ? 0.5 : -0.5,
+    (i & 2) ? 0.5 : -0.5,
+    (i & 4) ? 0.5 : -0.5,
+    (i & 8) ? 0.5 : -0.5,
+  ]),
+  edges: (() => {
+    const e: [number, number][] = [];
+    for (let i = 0; i < 16; i++)
+      for (let j = i + 1; j < 16; j++)
+        if ((i ^ j) && !((i ^ j) & ((i ^ j) - 1))) e.push([i, j]);
+    return e;
+  })(),
+};
+
+const SHAPES: ShapeDef[] = [CUBE, ICOSAHEDRON, TESSERACT];
+// 정이십면체·테서랙트는 크기 배율 적용
+const SHAPE_SCALE: Record<number, number> = { 1: 1.5, 2: 1.5 };
 
 // ── 타입 ──────────────────────────────────────────────────────────────
 
@@ -44,6 +131,11 @@ interface Bubble {
   offset:    number;
   avoidX:    number;
   avoidY:    number;
+  shape:     number;
+  rotSpdX:   number;
+  rotSpdY:   number;
+  rotSpdZ:   number;
+  rotSpdW:   number;
 }
 
 // ── 유틸 ──────────────────────────────────────────────────────────────
@@ -56,6 +148,90 @@ function isLowEndDevice(): boolean {
 
 function randItem<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
+}
+
+// 3D 오일러 회전 (XYZ)
+function rotate3D(
+  x: number, y: number, z: number,
+  rx: number, ry: number, rz: number,
+): [number, number, number] {
+  let ny = y * Math.cos(rx) - z * Math.sin(rx);
+  let nz = y * Math.sin(rx) + z * Math.cos(rx);
+  y = ny; z = nz;
+  let nx = x * Math.cos(ry) + z * Math.sin(ry);
+  nz = -x * Math.sin(ry) + z * Math.cos(ry);
+  x = nx; z = nz;
+  nx = x * Math.cos(rz) - y * Math.sin(rz);
+  ny = x * Math.sin(rz) + y * Math.cos(rz);
+  return [nx, ny, z];
+}
+
+// 4D 회전 (XW 평면 + YZ 평면)
+function rotate4D(
+  x: number, y: number, z: number, w: number,
+  aXW: number, aYZ: number,
+): [number, number, number, number] {
+  let nx = x * Math.cos(aXW) - w * Math.sin(aXW);
+  let nw = x * Math.sin(aXW) + w * Math.cos(aXW);
+  x = nx; w = nw;
+  const ny = y * Math.cos(aYZ) - z * Math.sin(aYZ);
+  const nz = y * Math.sin(aYZ) + z * Math.cos(aYZ);
+  return [x, ny, nz, w];
+}
+
+// 4D → 3D 투시 투영
+function project4Dto3D(
+  x: number, y: number, z: number, w: number,
+): [number, number, number] {
+  const d = 2.5;
+  const s = d / (d - w);
+  return [x * s, y * s, z * s];
+}
+
+// 점 → 선분 거리² (2D)
+function distToSegSq(
+  px: number, py: number,
+  x1: number, y1: number, x2: number, y2: number,
+): number {
+  const dx = x2 - x1, dy = y2 - y1;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq < 0.001) return (px - x1) ** 2 + (py - y1) ** 2;
+  const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / lenSq));
+  return (px - (x1 + t * dx)) ** 2 + (py - (y1 + t * dy)) ** 2;
+}
+
+// 도형 정점을 회전·투영하여 2D 엣지 배열 반환
+function projectShape(
+  def: ShapeDef, t: number, b: Bubble,
+  cx: number, cy: number, radius: number,
+): { edges: [number, number, number, number][]; boundR: number } {
+  const rx = t * b.rotSpdX, ry = t * b.rotSpdY, rz = t * b.rotSpdZ;
+  const rw = t * b.rotSpdW;
+  const pts: [number, number][] = [];
+
+  for (const v of def.vertices) {
+    let x: number, y: number, z: number;
+    if (def.dim === 4) {
+      const [a, b4, c, d] = rotate4D(v[0], v[1], v[2], v[3], rw, rw * 0.71);
+      [x, y, z] = project4Dto3D(a, b4, c, d);
+    } else {
+      x = v[0]; y = v[1]; z = v[2];
+    }
+    const [px, py] = rotate3D(x, y, z, rx, ry, rz);
+    pts.push([cx + px * radius, cy + py * radius]);
+  }
+
+  const edges: [number, number, number, number][] = def.edges.map(([i, j]) => [
+    pts[i][0], pts[i][1], pts[j][0], pts[j][1],
+  ]);
+
+  let maxR = 0;
+  for (const [px, py] of pts) {
+    const d = (px - cx) ** 2 + (py - cy) ** 2;
+    if (d > maxR) maxR = d;
+  }
+
+  return { edges, boundR: Math.sqrt(maxR) };
 }
 
 // ── 컴포넌트 ──────────────────────────────────────────────────────────
@@ -113,13 +289,13 @@ function BackgroundMatrix() {
 
     // ── 버블 초기화 ───────────────────────────────────────────────────
 
-    const bubbleCount = isMobile
-      ? (lowEnd ? 14 : 26)  // 모바일: 2배
-      : (lowEnd ?  7 : 13); // 데스크톱: 기본
+    const bubbleCount = lowEnd ? 7 : 13;
     const bubbles: Bubble[] = Array.from({ length: bubbleCount }, (_, i) => {
-      const size = i === 0 ? 450
-                 : i <  3 ? Math.random() * 150 + 300
-                           : Math.random() * 120 + 50;
+      const shapeIdx = Math.floor(Math.random() * SHAPES.length);
+      const baseSize = i === 0 ? 450
+                     : i <  3 ? Math.random() * 150 + 300
+                               : Math.random() * 120 + 50;
+      const size = baseSize * (SHAPE_SCALE[shapeIdx] ?? 1);
       return {
         size,
         initialX:  Math.random() * 80 + 10,
@@ -130,26 +306,28 @@ function BackgroundMatrix() {
         offset:    Math.random() * Math.PI * 2,
         avoidX:    0,
         avoidY:    0,
+        shape:     shapeIdx,
+        rotSpdX:   (Math.random() - 0.5) * 0.8,
+        rotSpdY:   (Math.random() - 0.5) * 0.8,
+        rotSpdZ:   (Math.random() - 0.5) * 0.8,
+        rotSpdW:   (Math.random() - 0.5) * 0.6,
       };
     });
 
     // ── 버블 위치 계산 (마우스 반발 포함) ────────────────────────────
 
-    // 현재 모바일 여부에 따른 실제 반지름 반환
-    const effRadius = (b: Bubble) => (b.size * (isMobile ? MOBILE_SIZE_MULT : 1)) / 2;
+    const effRadius = (b: Bubble) => b.size / 2;
 
     const updateBubble = (b: Bubble, t: number): { cx: number; cy: number } => {
       const winW      = window.innerWidth;
       const winH      = window.innerHeight;
       const baseX     = (b.initialX / 100) * winW;
       const baseY     = (b.initialY / 100) * winH;
-      const speedMult = isMobile ? MOBILE_SPEED_MULT : 1;
-      const ampMult   = isMobile ? MOBILE_AMP_MULT   : 1;
       const halfSize  = effRadius(b);
-      const ambX  = Math.sin(t * b.speed * speedMult + b.offset)        * b.amplitude * ampMult
-                  + Math.sin(t * b.speed * speedMult * 0.37 + b.offset) * (b.amplitude * ampMult * 0.5);
-      const ambY  = Math.cos(t * b.speed * speedMult * 0.8  + b.offset) * b.amplitude * ampMult
-                  + Math.cos(t * b.speed * speedMult * 0.31  + b.offset) * (b.amplitude * ampMult * 0.5);
+      const ambX  = Math.sin(t * b.speed + b.offset)        * b.amplitude
+                  + Math.sin(t * b.speed * 0.37 + b.offset) * (b.amplitude * 0.5);
+      const ambY  = Math.cos(t * b.speed * 0.8  + b.offset) * b.amplitude
+                  + Math.cos(t * b.speed * 0.31  + b.offset) * (b.amplitude * 0.5);
 
       const cx0 = baseX + ambX + b.avoidX + halfSize;
       const cy0 = baseY + ambY + b.avoidY + halfSize;
@@ -202,7 +380,14 @@ function BackgroundMatrix() {
       ctx.font         = `${CELL}px monospace`;
       ctx.textBaseline = "top";
 
-      const centers = bubbles.map((b) => ({ ...updateBubble(b, t), r: effRadius(b), color: b.color }));
+      // 프레임마다 각 도형의 와이어프레임 엣지를 미리 계산
+      const projected = bubbles.map((b) => {
+        const { cx, cy } = updateBubble(b, t);
+        const r = effRadius(b);
+        const edgeW = Math.max(CELL * 1.0, r * 0.07);
+        const { edges, boundR } = projectShape(SHAPES[b.shape], t, b, cx, cy, r);
+        return { cx, cy, boundR, color: b.color, edges, edgeWSq: edgeW * edgeW };
+      });
 
       for (let row = 0; row < rows; row++) {
         for (let col = 0; col < cols; col++) {
@@ -212,15 +397,27 @@ function BackgroundMatrix() {
           const px = col * CELL + CELL / 2;
           const py = row * CELL + CELL / 2;
 
-          let bubbleColor: string | null = null;
-          for (const { cx, cy, r, color } of centers) {
-            const dx = px - cx, dy = py - cy;
-            if (dx * dx + dy * dy < r * r) { bubbleColor = color; break; }
+          let wireColor: string | null = null;
+          for (const s of projected) {
+            // 바운딩 서클로 빠른 거부
+            const dx = px - s.cx, dy = py - s.cy;
+            const distSq = dx * dx + dy * dy;
+            const outer = s.boundR + CELL * 2;
+            if (distSq > outer * outer) continue;
+
+            // 엣지 근접 확인
+            for (const [x1, y1, x2, y2] of s.edges) {
+              if (distToSegSq(px, py, x1, y1, x2, y2) < s.edgeWSq) {
+                wireColor = s.color;
+                break;
+              }
+            }
+            if (wireColor) break;
           }
 
-          if (bubbleColor) {
+          if (wireColor) {
             ctx.globalAlpha = 0.85;
-            ctx.fillStyle   = bubbleColor;
+            ctx.fillStyle   = wireColor;
             ctx.fillText(randItem(BUBBLE_CHARS), col * CELL, row * CELL);
           } else {
             ctx.globalAlpha = cell.alpha;
