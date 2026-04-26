@@ -27,6 +27,16 @@ const VOLUME_BTN: Record<"full" | "half" | "off", string> = {
   off:  "bg-red-900/20 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.5)] hover:shadow-[0_0_30px_rgba(239,68,68,0.8)]",
 };
 
+const BGM_VISUAL_COLORS: Record<string, string> = {
+  bgm1: "#06b6d4",
+  bgm2: "#8b5cf6",
+  bgm3: "#10b981",
+  bgm4: "#ec4899",
+  bgm5: "#facc15",
+};
+
+type BgmVisualWindow = Window & { __bgmBeatPulse?: number };
+
 // ── 유틸 ──────────────────────────────────────────────────────────────
 
 function shuffle<T>(arr: T[]): T[] {
@@ -36,6 +46,31 @@ function shuffle<T>(arr: T[]): T[] {
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
+}
+
+function getBgmVisualColor(fileName: string): string {
+  const key = fileName.toLowerCase().replace(/\.[^.]+$/, "");
+  return BGM_VISUAL_COLORS[key] ?? "#06b6d4";
+}
+
+function getDifferentTrackIndex(list: string[], currentIndex: number, mode: "random" | "next"): number {
+  const currentTrack = list[currentIndex];
+  const candidates = list
+    .map((track, index) => ({ track, index }))
+    .filter(({ track }) => track !== currentTrack);
+
+  if (candidates.length === 0) return currentIndex;
+
+  if (mode === "random") {
+    return candidates[Math.floor(Math.random() * candidates.length)].index;
+  }
+
+  for (let step = 1; step <= list.length; step++) {
+    const nextIndex = (currentIndex + step) % list.length;
+    if (list[nextIndex] !== currentTrack) return nextIndex;
+  }
+
+  return candidates[0].index;
 }
 
 // ── 아이콘 ────────────────────────────────────────────────────────────
@@ -93,7 +128,19 @@ function HomeInner() {
   // Web Audio API refs — enables volume control on mobile (iOS)
   const audioCtxRef   = useRef<AudioContext | null>(null);
   const gainNodeRef   = useRef<GainNode | null>(null);
+  const analyserRef   = useRef<AnalyserNode | null>(null);
+  const freqDataRef   = useRef<Uint8Array<ArrayBuffer> | null>(null);
+  const visualRafRef  = useRef<number | null>(null);
+  const beatFloorRef  = useRef(0.04);
+  const beatPeakRef   = useRef(0.18);
+  const beatEnvRef    = useRef(0);
+  const beatFluxAvgRef = useRef(0);
+  const beatFluxDevRef = useRef(0.025);
+  const beatBandsRef  = useRef<number[]>([]);
+  const beatPulseRef  = useRef(0);
+  const lastBeatAtRef = useRef(0);
   const gainValueRef  = useRef(0.3); // desired gain before AudioContext exists
+  const volumeStateRef = useRef<"full" | "half" | "off">("full");
 
   // Long-press refs
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -102,10 +149,124 @@ function HomeInner() {
   const cooldownUntil  = useRef(0);
   const LONG_PRESS_MS  = 600;
 
+  const updateBgmVisualColor = useCallback((fileName: string, transition = false) => {
+    const color = getBgmVisualColor(fileName);
+    beatFloorRef.current = 0.04;
+    beatPeakRef.current = 0.18;
+    beatEnvRef.current = 0;
+    beatFluxAvgRef.current = 0;
+    beatFluxDevRef.current = 0.025;
+    beatBandsRef.current = [];
+    beatPulseRef.current = 0;
+    lastBeatAtRef.current = 0;
+    window.dispatchEvent(new CustomEvent("bgm-visual-track", {
+      detail: { color, transition },
+    }));
+    return color;
+  }, []);
+
+  const setSyncedVolumeState = useCallback((state: "full" | "half" | "off") => {
+    const nextGain = state === "full" ? 0.3 : state === "half" ? 0.15 : 0;
+    const audio = audioRef.current;
+    const gain = gainNodeRef.current;
+
+    volumeStateRef.current = state;
+    gainValueRef.current = nextGain;
+    setVolumeState(state);
+
+    if (gain) gain.gain.value = nextGain;
+    else if (audio) try { audio.volume = nextGain; } catch (_) {}
+
+    if (state === "off") audio?.pause();
+  }, []);
+
+  const startBeatVisualLoop = useCallback(() => {
+    if (visualRafRef.current !== null) return;
+
+    const tick = () => {
+      const analyser = analyserRef.current;
+      const data = freqDataRef.current;
+      let pulse = 0;
+
+      if (analyser && data) {
+        analyser.getByteFrequencyData(data);
+
+        const audioCtx = audioCtxRef.current;
+        const hzPerBin = (audioCtx?.sampleRate ?? 44100) / analyser.fftSize;
+        const kickStart = Math.max(1, Math.floor(45 / hzPerBin));
+        const kickEnd = Math.min(data.length, Math.ceil(170 / hzPerBin));
+        const bassEnd = Math.min(data.length, Math.ceil(340 / hzPerBin));
+        const lowEnd = Math.min(data.length, Math.ceil(620 / hzPerBin));
+
+        let kickSum = 0;
+        let kickWeight = 0;
+        let bassSum = 0;
+        let bassCount = 0;
+        let fluxSum = 0;
+        let fluxWeight = 0;
+        const prev = beatBandsRef.current;
+
+        for (let i = kickStart; i < kickEnd; i++) {
+          const freq = i * hzPerBin;
+          const center = 92;
+          const weight = 1.2 + Math.max(0, 1 - Math.abs(freq - center) / 90) * 2.4;
+          const value = data[i] / 255;
+          kickSum += value * weight;
+          kickWeight += weight;
+        }
+
+        for (let i = kickEnd; i < bassEnd; i++) {
+          bassSum += data[i] / 255;
+          bassCount++;
+        }
+
+        for (let i = kickStart; i < lowEnd; i++) {
+          const value = data[i] / 255;
+          const diff = Math.max(0, value - (prev[i] ?? 0));
+          const weight = i < kickEnd ? 2.1 : i < bassEnd ? 1.25 : 0.55;
+          fluxSum += diff * weight;
+          fluxWeight += weight;
+          prev[i] = value;
+        }
+
+        const kick = kickSum / Math.max(1, kickWeight);
+        const bass = bassSum / Math.max(1, bassCount);
+        const energy = Math.min(1, Math.pow(kick * 0.78 + bass * 0.22, 0.62) * 1.42);
+        const flux = fluxSum / Math.max(1, fluxWeight);
+
+        beatFloorRef.current += (energy - beatFloorRef.current) * 0.006;
+        beatPeakRef.current = Math.max(beatPeakRef.current * 0.994, energy, beatFloorRef.current + 0.08);
+        const range = Math.max(0.05, beatPeakRef.current - beatFloorRef.current);
+        const normalized = Math.max(0, Math.min(1, (energy - beatFloorRef.current) / range));
+        beatEnvRef.current += (normalized - beatEnvRef.current) * (normalized > beatEnvRef.current ? 0.68 : 0.12);
+
+        beatFluxAvgRef.current += (flux - beatFluxAvgRef.current) * 0.018;
+        beatFluxDevRef.current += (Math.abs(flux - beatFluxAvgRef.current) - beatFluxDevRef.current) * 0.03;
+        const onset = Math.max(0, Math.min(1, (flux - beatFluxAvgRef.current - beatFluxDevRef.current * 0.65) / Math.max(0.012, beatFluxDevRef.current * 2.35)));
+
+        const now = performance.now();
+        if (onset > 0.42 && now - lastBeatAtRef.current > 115) {
+          beatPulseRef.current = Math.max(beatPulseRef.current, Math.min(1, 0.55 + onset * 0.7));
+          lastBeatAtRef.current = now;
+        }
+
+        const sustained = Math.max(0, (beatEnvRef.current - 0.36) * 1.25);
+        beatPulseRef.current = Math.max(beatPulseRef.current * 0.84, sustained, onset * 0.62);
+        pulse = Math.min(1, beatPulseRef.current);
+      }
+
+      (window as BgmVisualWindow).__bgmBeatPulse = pulse;
+      visualRafRef.current = requestAnimationFrame(tick);
+    };
+
+    visualRafRef.current = requestAnimationFrame(tick);
+  }, []);
+
   /** Lazily create (or resume) the Web Audio graph on first user interaction. */
-  function ensureAudioGraph() {
+  const ensureAudioGraph = useCallback(() => {
     if (audioCtxRef.current) {
       if (audioCtxRef.current.state === "suspended") audioCtxRef.current.resume();
+      startBeatVisualLoop();
       return;
     }
     const audio = audioRef.current;
@@ -113,64 +274,75 @@ function HomeInner() {
     const ctx = new (window.AudioContext ||
       (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
     const gain = ctx.createGain();
-    gain.gain.value = gainValueRef.current;
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 1024;
+    analyser.smoothingTimeConstant = 0.32;
+    gain.gain.value = volumeStateRef.current === "off" ? 0 : gainValueRef.current;
     const source = ctx.createMediaElementSource(audio);
-    source.connect(gain);
+    source.connect(analyser);
+    analyser.connect(gain);
     gain.connect(ctx.destination);
     // Hand volume control entirely to the gain node
     try { audio.volume = 1; } catch (_) {}
     audioCtxRef.current = ctx;
     gainNodeRef.current = gain;
+    analyserRef.current = analyser;
+    freqDataRef.current = new Uint8Array(analyser.frequencyBinCount);
     ctx.resume();
-  }
+    startBeatVisualLoop();
+    if (volumeStateRef.current === "off") audio.pause();
+  }, [startBeatVisualLoop]);
 
   const playTrack = useCallback((index: number) => {
     const audio = audioRef.current;
     if (!audio || bgmListRef.current.length === 0) return;
-    audio.src = `/bgm/${bgmListRef.current[index]}`;
+    const track = bgmListRef.current[index];
+    audio.src = `/bgm/${track}`;
+    updateBgmVisualColor(track);
     // Set element volume only as fallback before Web Audio is initialised
     try { audio.volume = gainValueRef.current; } catch (_) {}
-    audio.play().catch(() => setVolumeState("off"));
-  }, []);
+    audio.play()
+      .then(() => {
+        if (volumeStateRef.current === "off") audio.pause();
+      })
+      .catch(() => setSyncedVolumeState("off"));
+  }, [setSyncedVolumeState, updateBgmVisualColor]);
 
-  const cycleVolume = () => {
+  const cycleVolume = useCallback(() => {
     ensureAudioGraph();
-    const gain = gainNodeRef.current;
     if (volumeState === "full") {
-      gainValueRef.current = 0.15;
-      if (gain) gain.gain.value = 0.15;
-      else try { if (audioRef.current) audioRef.current.volume = 0.15; } catch (_) {}
-      setVolumeState("half");
+      setSyncedVolumeState("half");
     } else if (volumeState === "half") {
-      gainValueRef.current = 0;
-      if (gain) gain.gain.value = 0;
-      audioRef.current?.pause();
-      setVolumeState("off");
+      setSyncedVolumeState("off");
     } else {
-      gainValueRef.current = 0.3;
-      if (gain) gain.gain.value = 0.3;
-      else try { if (audioRef.current) audioRef.current.volume = 0.3; } catch (_) {}
+      setSyncedVolumeState("full");
       audioRef.current?.play().catch(() => {});
-      setVolumeState("full");
     }
-  };
+  }, [ensureAudioGraph, setSyncedVolumeState, volumeState]);
 
   /** 랜덤 다른 곡으로 크로스페이드 전환 */
   const skipToRandomTrack = useCallback((originX: number, originY: number) => {
     const list = bgmListRef.current;
-    if (list.length < 2) return;
+    const next = getDifferentTrackIndex(list, bgmIndexRef.current, "random");
+    if (!list.length || list[next] === list[bgmIndexRef.current]) return;
+    const nextColor = updateBgmVisualColor(list[next], true);
 
-    // 리플 이벤트 발사
-    window.dispatchEvent(new CustomEvent("ascii-ripple", { detail: { x: originX, y: originY } }));
-
-    // 현재와 다른 랜덤 인덱스
-    let next = bgmIndexRef.current;
-    while (next === bgmIndexRef.current) next = Math.floor(Math.random() * list.length);
+    // 다음 곡 색의 진한 리플 발사
+    window.dispatchEvent(new CustomEvent("ascii-ripple", {
+      detail: { x: originX, y: originY, color: nextColor },
+    }));
 
     // 볼륨 페이드아웃 → 곡 교체 → 페이드인
     const gain = gainNodeRef.current;
     const audio = audioRef.current;
     if (!audio) return;
+
+    if (volumeStateRef.current === "off") {
+      bgmIndexRef.current = next;
+      audio.src = `/bgm/${list[next]}`;
+      audio.pause();
+      return;
+    }
 
     const savedGain = gainValueRef.current;
     const FADE_MS   = 800;
@@ -188,6 +360,7 @@ function HomeInner() {
         // swap track
         bgmIndexRef.current = next;
         audio.src = `/bgm/${list[next]}`;
+        updateBgmVisualColor(list[next], true);
         audio.play().catch(() => {});
         // fade in
         let stepIn = 0;
@@ -204,6 +377,13 @@ function HomeInner() {
         }, FADE_MS / steps);
       }
     }, FADE_MS / steps);
+  }, [updateBgmVisualColor]);
+
+  useEffect(() => {
+    return () => {
+      if (visualRafRef.current !== null) cancelAnimationFrame(visualRafRef.current);
+      (window as BgmVisualWindow).__bgmBeatPulse = 0;
+    };
   }, []);
 
   // ── Long-press handlers ───────────────────────────────────────────
@@ -217,9 +397,10 @@ function HomeInner() {
       ensureAudioGraph();
       skipToRandomTrack(clientX, clientY);
     }, LONG_PRESS_MS);
-  }, [skipToRandomTrack]);
+  }, [ensureAudioGraph, skipToRandomTrack]);
 
   const handlePressEnd = useCallback(() => {
+    if (isLongPress.current) cooldownUntil.current = Date.now() + 250;
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
@@ -236,7 +417,7 @@ function HomeInner() {
       detail: { x: pressCoords.current.x, y: pressCoords.current.y, thin: true },
     }));
     cycleVolume();
-  }, [volumeState]); // cycleVolume depends on volumeState
+  }, [cycleVolume]);
 
   useEffect(() => {
     fetch("/api/bgm")
@@ -264,6 +445,8 @@ function HomeInner() {
   // ── 화면 아무 곳 클릭/터치 시 미세 리플 ──────────────────────────
   useEffect(() => {
     const fireMiniRipple = (x: number, y: number) => {
+      if (isLongPress.current || Date.now() < cooldownUntil.current) return;
+      ensureAudioGraph();
       window.dispatchEvent(new CustomEvent("ascii-ripple", {
         detail: { x, y, band: 15 },
       }));
@@ -278,7 +461,7 @@ function HomeInner() {
       window.removeEventListener("click", onClick);
       window.removeEventListener("touchstart", onTouch);
     };
-  }, []);
+  }, [ensureAudioGraph]);
 
   const isGalleryTab = selectedIndex === 4;
 
@@ -304,7 +487,7 @@ function HomeInner() {
         onEnded={() => {
           const list = bgmListRef.current;
           if (!list.length) return;
-          bgmIndexRef.current = (bgmIndexRef.current + 1) % list.length;
+          bgmIndexRef.current = getDifferentTrackIndex(list, bgmIndexRef.current, "next");
           playTrack(bgmIndexRef.current);
         }}
       />

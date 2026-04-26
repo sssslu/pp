@@ -22,6 +22,9 @@ const MAX_REPULSION     = 650;
 const LERP              = 0.05;
 
 const MOBILE_BREAKPOINT = 768; // 이 너비 이하를 모바일로 간주
+const CENTER_SHAPE_MIN  = 180;
+const CENTER_SHAPE_MAX  = 680;
+const CENTER_SHAPE_RATIO = 0.42;
 
 // ── 기하학적 도형 정의 ───────────────────────────────────────────────
 
@@ -138,6 +141,8 @@ interface Bubble {
   rotSpdW:   number;
 }
 
+type BgmVisualWindow = Window & { __bgmBeatPulse?: number };
+
 // ── 유틸 ──────────────────────────────────────────────────────────────
 
 function isLowEndDevice(): boolean {
@@ -148,6 +153,16 @@ function isLowEndDevice(): boolean {
 
 function randItem<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function hexDistance(a: string, b: string): number {
+  const ar = parseInt(a.slice(1, 3), 16), ag = parseInt(a.slice(3, 5), 16), ab = parseInt(a.slice(5, 7), 16);
+  const br = parseInt(b.slice(1, 3), 16), bg = parseInt(b.slice(3, 5), 16), bb = parseInt(b.slice(5, 7), 16);
+  return (ar - br) ** 2 + (ag - bg) ** 2 + (ab - bb) ** 2;
+}
+
+function contrastShapeColor(bgColor: string): string {
+  return COLORS.reduce((best, color) => hexDistance(color, bgColor) > hexDistance(best, bgColor) ? color : best, COLORS[0]);
 }
 
 // 3D 오일러 회전 (XYZ)
@@ -252,6 +267,8 @@ function BackgroundMatrix() {
     const flickerRatio = lowEnd ? FLICKER_RATIO / 2 : FLICKER_RATIO;
 
     let isMobile = window.innerWidth <= MOBILE_BREAKPOINT;
+    let bgVisualColor = "#06b6d4";
+    let centerShapeColor = contrastShapeColor(bgVisualColor);
 
     const onMouseMove = (e: MouseEvent) => {
       if (isMobile) return; // 모바일에서는 커서 반발 없음
@@ -265,11 +282,24 @@ function BackgroundMatrix() {
     window.addEventListener("mousemove", onMouseMove, { passive: true });
     window.addEventListener("touchmove",  onTouchMove,  { passive: true });
 
+    const onBgmVisualTrack = (e: Event) => {
+      const { color, transition } = (e as CustomEvent).detail;
+      if (typeof color !== "string") return;
+      bgVisualColor = color;
+      centerShapeColor = contrastShapeColor(color);
+      if (transition) return;
+      for (let row = 0; row < cells.length; row++) {
+        for (let col = 0; col < cells[row].length; col++) cells[row][col].color = color;
+      }
+    };
+    window.addEventListener("bgm-visual-track", onBgmVisualTrack);
+
     // ── 셀 그리드 ─────────────────────────────────────────────────────
 
     let cols  = 0;
     let rows  = 0;
     let cells: Cell[][] = [];
+    let centerShapeRadius = 0;
 
     const resize = () => {
       canvas.width  = window.innerWidth;
@@ -278,41 +308,34 @@ function BackgroundMatrix() {
       if (isMobile) mousePos.current = { x: -9999, y: -9999 }; // 모바일 전환 시 반발 초기화
       cols = Math.ceil(canvas.width  / CELL);
       rows = Math.ceil(canvas.height / CELL);
+      centerShapeRadius = Math.min(CENTER_SHAPE_MAX, Math.max(CENTER_SHAPE_MIN, canvas.width * CENTER_SHAPE_RATIO)) / 2;
       cells = Array.from({ length: rows }, () =>
         Array.from({ length: cols }, () => ({
           ch:    Math.random() < 0.18 ? randItem(BG_CHARS) : " ",
-          color: randItem(COLORS),
+          color: bgVisualColor,
           alpha: Math.random() * 0.25 + 0.05,
         }))
       );
     };
 
-    // ── 버블 초기화 ───────────────────────────────────────────────────
+    // ── 중앙 도형 초기화 ─────────────────────────────────────────────
 
-    const bubbleCount = lowEnd ? 7 : 13;
-    const bubbles: Bubble[] = Array.from({ length: bubbleCount }, (_, i) => {
-      const shapeIdx = Math.floor(Math.random() * SHAPES.length);
-      const baseSize = i === 0 ? 450
-                     : i <  3 ? Math.random() * 150 + 300
-                               : Math.random() * 120 + 120;
-      const size = baseSize * (SHAPE_SCALE[shapeIdx] ?? 1);
-      return {
-        size,
-        initialX:  Math.random() * 80 + 10,
-        initialY:  Math.random() * 80 + 10,
-        color:     randItem(COLORS),
-        speed:     Math.random() * 1.2 + 0.3,
-        amplitude: Math.random() * 200 + 60,
-        offset:    Math.random() * Math.PI * 2,
-        avoidX:    0,
-        avoidY:    0,
-        shape:     shapeIdx,
-        rotSpdX:   (Math.random() - 0.5) * 0.8,
-        rotSpdY:   (Math.random() - 0.5) * 0.8,
-        rotSpdZ:   (Math.random() - 0.5) * 0.8,
-        rotSpdW:   (Math.random() - 0.5) * 0.6,
-      };
-    });
+    const centerShape: Bubble = {
+      size:      0,
+      initialX:  50,
+      initialY:  50,
+      color:     centerShapeColor,
+      speed:     1,
+      amplitude: 0,
+      offset:    Math.random() * Math.PI * 2,
+      avoidX:    0,
+      avoidY:    0,
+      shape:     Math.floor(Math.random() * SHAPES.length),
+      rotSpdX:   (Math.random() < 0.5 ? -1 : 1) * (1.15 + Math.random() * 0.5),
+      rotSpdY:   (Math.random() < 0.5 ? -1 : 1) * (1.35 + Math.random() * 0.55),
+      rotSpdZ:   (Math.random() < 0.5 ? -1 : 1) * (0.95 + Math.random() * 0.45),
+      rotSpdW:   (Math.random() < 0.5 ? -1 : 1) * (1.0 + Math.random() * 0.5),
+    };
 
     // ── 버블 위치 계산 (마우스 반발 포함) ────────────────────────────
 
@@ -367,7 +390,7 @@ function BackgroundMatrix() {
           cells[r][c].alpha = Math.random() * 0.25 + 0.05;
         } else {
           cells[r][c].ch    = randItem(BG_CHARS);
-          cells[r][c].color = randItem(COLORS);
+          cells[r][c].color = bgVisualColor;
           cells[r][c].alpha = Math.random() * 0.25 + 0.05;
         }
       }
@@ -375,9 +398,8 @@ function BackgroundMatrix() {
 
     // ── 리플 시스템 ─────────────────────────────────────────────────
 
-    interface Ripple { x: number; y: number; birth: number; speed: number; maxR: number; band: number; life: number; }
+    interface Ripple { x: number; y: number; birth: number; speed: number; maxR: number; band: number; life: number; color: string; }
     const ripples: Ripple[] = [];
-    const RIPPLE_COLOR      = "#22d3ee"; // 형광 하늘색 (cyan-400)
     const RIPPLE_BAND_THICK = 180;       // 꾹 누름 파동 띠 두께(px)
     const RIPPLE_BAND_THIN  = 25;        // 일반 클릭 파동 띠 두께(px)
     const RIPPLE_SPEED      = 600;       // px/s
@@ -389,7 +411,16 @@ function BackgroundMatrix() {
       const dy = Math.max(detail.y, canvas.height - detail.y);
       const maxDist = Math.sqrt(dx * dx + dy * dy) + band;
       const lifespan = maxDist / RIPPLE_SPEED + 0.1;
-      ripples.push({ x: detail.x, y: detail.y, birth: performance.now() / 1000, speed: RIPPLE_SPEED, maxR: maxDist, band, life: lifespan });
+      ripples.push({
+        x: detail.x,
+        y: detail.y,
+        birth: performance.now() / 1000,
+        speed: RIPPLE_SPEED,
+        maxR: maxDist,
+        band,
+        life: lifespan,
+        color: typeof detail.color === "string" ? detail.color : bgVisualColor,
+      });
     };
     window.addEventListener("ascii-ripple", onRipple);
 
@@ -417,45 +448,55 @@ function BackgroundMatrix() {
         const front = (t - rp.birth) * rp.speed;
         const inner = front - rp.band;
         const outer = front + rp.band;
-        return { x: rp.x, y: rp.y, innerSq: inner > 0 ? inner * inner : 0, outerSq: outer * outer, hasInner: inner > 0 };
+        return { x: rp.x, y: rp.y, innerSq: inner > 0 ? inner * inner : 0, outerSq: outer * outer, hasInner: inner > 0, color: rp.color };
       });
       const hasRipples = rippleFrames.length > 0;
+      const beatPulse = (window as BgmVisualWindow).__bgmBeatPulse ?? 0;
+      const beatFlash = Math.pow(beatPulse, 0.55);
+      const bgAlphaMult = 0.36 + beatFlash * 2.65;
 
-      // 프레임마다 각 도형의 와이어프레임 엣지를 미리 계산
-      const projected = bubbles.map((b) => {
-        const { cx, cy } = updateBubble(b, t);
-        const r = effRadius(b);
-        const edgeW = Math.max(CELL * 0.5, r * 0.035);
-        const { edges, boundR } = projectShape(SHAPES[b.shape], t, b, cx, cy, r);
-        return { cx, cy, boundR, color: b.color, edges, edgeWSq: edgeW * edgeW, outerSq: (boundR + CELL * 2) ** 2 };
-      });
+      // 중앙 도형의 와이어프레임 엣지 계산
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+      const edgeW = Math.max(CELL * 0.5, centerShapeRadius * 0.035);
+      const projectedShape = projectShape(SHAPES[centerShape.shape], t + centerShape.offset, centerShape, cx, cy, centerShapeRadius);
+      const projected = [{
+        cx,
+        cy,
+        boundR: projectedShape.boundR,
+        color: centerShapeColor,
+        edges: projectedShape.edges,
+        edgeWSq: edgeW * edgeW,
+        outerSq: (projectedShape.boundR + CELL * 2) ** 2,
+      }];
 
       for (let row = 0; row < rows; row++) {
         const py = row * CELL + CELL / 2;
         for (let col = 0; col < cols; col++) {
           const px = col * CELL + CELL / 2;
+          const cell = cells[row][col];
 
           // 리플 영향 계산 (squared distance로 빠른 판별)
           if (hasRipples) {
-            let hit = false;
+            let rippleColor: string | null = null;
             for (let ri = 0; ri < rippleFrames.length; ri++) {
               const rf = rippleFrames[ri];
               const dx = px - rf.x, dy = py - rf.y;
               const distSq = dx * dx + dy * dy;
               if (distSq <= rf.outerSq && (!rf.hasInner || distSq >= rf.innerSq)) {
-                hit = true;
+                rippleColor = rf.color;
                 break;
               }
             }
-            if (hit) {
+            if (rippleColor) {
+              cell.color = rippleColor;
               ctx.globalAlpha = 1;
-              ctx.fillStyle   = RIPPLE_COLOR;
+              ctx.fillStyle   = rippleColor;
               ctx.fillText(nextBubbleCh(), col * CELL, row * CELL);
               continue;
             }
           }
 
-          const cell = cells[row][col];
           if (cell.ch === " ") continue;
 
           let wireColor: string | null = null;
@@ -481,7 +522,7 @@ function BackgroundMatrix() {
             ctx.fillStyle   = wireColor;
             ctx.fillText(nextBubbleCh(), col * CELL, row * CELL);
           } else {
-            ctx.globalAlpha = cell.alpha;
+            ctx.globalAlpha = Math.min(0.42, cell.alpha * bgAlphaMult);
             ctx.fillStyle   = cell.color;
             ctx.fillText(cell.ch, col * CELL, row * CELL);
           }
@@ -508,6 +549,7 @@ function BackgroundMatrix() {
       window.removeEventListener("resize",    resize);
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("bgm-visual-track", onBgmVisualTrack);
       window.removeEventListener("ascii-ripple", onRipple);
     };
   }, []);

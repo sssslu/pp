@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, Variants } from "framer-motion";
 
 const galleryItems = [
@@ -129,12 +129,21 @@ function CategoryItem({ category, item, onClick, variants }: CategoryItemProps) 
 
 interface GalleryImageItemProps {
   item: GalleryItemData;
+  index: number;
   onClick: () => void;
   variants: Variants;
 }
 
-function GalleryImageItem({ item, onClick, variants }: GalleryImageItemProps) {
+function GalleryImageItem({ item, index, onClick, variants }: GalleryImageItemProps) {
   const [isLoaded, setIsLoaded] = useState(false);
+  const [shouldLoad, setShouldLoad] = useState(false);
+
+  useEffect(() => {
+    setIsLoaded(false);
+    setShouldLoad(false);
+    const timer = window.setTimeout(() => setShouldLoad(true), Math.min(index * 85, 900));
+    return () => window.clearTimeout(timer);
+  }, [index, item.url]);
 
   return (
     <motion.div
@@ -142,16 +151,20 @@ function GalleryImageItem({ item, onClick, variants }: GalleryImageItemProps) {
       onClick={onClick}
       variants={variants}
     >
-      <div className="relative w-full h-48">
-        <Image
-          src={item.url}
-          alt={item.description}
-          fill
-          loading="lazy"
-          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-          className={`object-cover transition-opacity duration-700 ease-in-out ${isLoaded ? "opacity-100" : "opacity-0"}`}
-          onLoad={() => setIsLoaded(true)}
-        />
+      <div className="relative w-full aspect-square bg-gray-950">
+        {shouldLoad && (
+          <Image
+            src={item.url}
+            alt={item.description}
+            fill
+            loading="lazy"
+            decoding="async"
+            quality={72}
+            sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
+            className={`object-cover transition-opacity duration-700 ease-in-out ${isLoaded ? "opacity-100" : "opacity-0"}`}
+            onLoad={() => setIsLoaded(true)}
+          />
+        )}
       </div>
       <div className="p-2">
         <p className="text-gray-300 text-sm truncate">{item.description}</p>
@@ -175,10 +188,11 @@ export default function GallerySection() {
           &larr; 뒤로가기
         </button>
         <motion.div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3" variants={containerVariants} initial="hidden" animate="visible">
-          {itemsToShow.map((item) => (
+          {itemsToShow.map((item, index) => (
             <GalleryImageItem
               key={item.url}
               item={item}
+              index={index}
               onClick={() => setSelectedItem(item)}
               variants={itemVariants}
             />
