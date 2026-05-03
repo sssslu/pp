@@ -22,6 +22,7 @@ const MAX_REPULSION     = 650;
 const LERP              = 0.05;
 
 const MOBILE_BREAKPOINT = 768; // 이 너비 이하를 모바일로 간주
+const NARROW_MOBILE_BREAKPOINT = 430;
 const CENTER_SHAPE_MIN  = 180;
 const CENTER_SHAPE_MAX  = 680;
 const CENTER_SHAPE_RATIO = 0.42;
@@ -112,9 +113,10 @@ const TESSERACT: ShapeDef = {
   })(),
 };
 
+const SHAPE_CUBE = 0;
+const SHAPE_ICOSAHEDRON = 1;
+const SHAPE_TESSERACT = 2;
 const SHAPES: ShapeDef[] = [CUBE, ICOSAHEDRON, TESSERACT];
-// 정이십면체·테서랙트는 크기 배율 적용
-const SHAPE_SCALE: Record<number, number> = { 1: 1.5, 2: 1.5 };
 
 // ── 타입 ──────────────────────────────────────────────────────────────
 
@@ -163,6 +165,12 @@ function hexDistance(a: string, b: string): number {
 
 function contrastShapeColor(bgColor: string): string {
   return COLORS.reduce((best, color) => hexDistance(color, bgColor) > hexDistance(best, bgColor) ? color : best, COLORS[0]);
+}
+
+function getCenterShapeIndex(width: number): number {
+  if (width <= NARROW_MOBILE_BREAKPOINT) return SHAPE_CUBE;
+  if (width <= MOBILE_BREAKPOINT) return SHAPE_TESSERACT;
+  return SHAPE_ICOSAHEDRON;
 }
 
 // 3D 오일러 회전 (XYZ)
@@ -330,7 +338,7 @@ function BackgroundMatrix() {
       offset:    Math.random() * Math.PI * 2,
       avoidX:    0,
       avoidY:    0,
-      shape:     Math.floor(Math.random() * SHAPES.length),
+      shape:     SHAPE_ICOSAHEDRON,
       rotSpdX:   (Math.random() < 0.5 ? -1 : 1) * (1.15 + Math.random() * 0.5),
       rotSpdY:   (Math.random() < 0.5 ? -1 : 1) * (1.35 + Math.random() * 0.55),
       rotSpdZ:   (Math.random() < 0.5 ? -1 : 1) * (0.95 + Math.random() * 0.45),
@@ -458,6 +466,7 @@ function BackgroundMatrix() {
       // 중앙 도형의 와이어프레임 엣지 계산
       const cx = canvas.width / 2;
       const cy = canvas.height / 2;
+      centerShape.shape = getCenterShapeIndex(canvas.width);
       const edgeW = Math.max(CELL * 0.5, centerShapeRadius * 0.035);
       const projectedShape = projectShape(SHAPES[centerShape.shape], t + centerShape.offset, centerShape, cx, cy, centerShapeRadius);
       const projected = [{
