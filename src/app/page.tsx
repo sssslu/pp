@@ -52,22 +52,6 @@ function getBgmVisualColor(fileName: string): string {
   return BGM_VISUAL_COLORS[key] ?? "#06b6d4";
 }
 
-function buildTrackQueue(list: string[], currentIndex: number, mode: "random" | "next"): number[] {
-  const currentTrack = list[currentIndex];
-  const candidates = list.map((track, index) => ({ track, index })).filter(({ track }) => track !== currentTrack);
-
-  if (mode === "random") {
-    return shuffle(candidates.map(({ index }) => index));
-  }
-
-  const queue: number[] = [];
-  for (let step = 1; step < list.length; step++) {
-    const index = (currentIndex + step) % list.length;
-    if (list[index] !== currentTrack) queue.push(index);
-  }
-  return queue;
-}
-
 // ── 아이콘 ────────────────────────────────────────────────────────────
 
 function MusicOnIcon() {
@@ -110,7 +94,6 @@ function HomeInner() {
   const audioRef      = useRef<HTMLAudioElement>(null);
   const bgmListRef    = useRef<string[]>([]);
   const bgmIndexRef   = useRef(0);
-  const trackQueueRef = useRef<number[]>([]);
   // Web Audio API refs — enables volume control on mobile (iOS)
   const audioCtxRef   = useRef<AudioContext | null>(null);
   const gainNodeRef   = useRef<GainNode | null>(null);
@@ -160,19 +143,11 @@ function HomeInner() {
     audio.playbackRate = 1;
   }, []);
 
-  const getNextTrackIndex = useCallback((mode: "random" | "next") => {
+  const getNextTrackIndex = useCallback(() => {
     const list = bgmListRef.current;
     const currentIndex = bgmIndexRef.current;
     if (list.length < 2) return currentIndex;
-
-    const currentTrack = list[currentIndex];
-    trackQueueRef.current = trackQueueRef.current.filter((index) => list[index] && list[index] !== currentTrack);
-
-    if (trackQueueRef.current.length === 0) {
-      trackQueueRef.current = buildTrackQueue(list, currentIndex, mode);
-    }
-
-    return trackQueueRef.current.shift() ?? currentIndex;
+    return (currentIndex + 1) % list.length;
   }, []);
 
   /** Lazily create (or resume) the Web Audio graph on first user interaction. */
@@ -225,10 +200,10 @@ function HomeInner() {
     }
   }, [ensureAudioGraph, normalizePlaybackRate, setSyncedVolumeState, volumeState]);
 
-  /** 랜덤 다른 곡으로 크로스페이드 전환 */
-  const skipToRandomTrack = useCallback((originX: number, originY: number) => {
+  /** 페이지 로드 때 만들어진 랜덤 순서를 따라 다음 곡으로 전환 */
+  const skipToNextTrack = useCallback((originX: number, originY: number) => {
     const list = bgmListRef.current;
-    const next = getNextTrackIndex("random");
+    const next = getNextTrackIndex();
     if (!list.length || list[next] === list[bgmIndexRef.current]) return;
     const nextColor = updateBgmVisualColor(list[next], true);
 
@@ -304,9 +279,9 @@ function HomeInner() {
       isLongPress.current = true;
       cooldownUntil.current = Date.now() + 200;
       ensureAudioGraph();
-      skipToRandomTrack(clientX, clientY);
+      skipToNextTrack(clientX, clientY);
     }, LONG_PRESS_MS);
-  }, [ensureAudioGraph, skipToRandomTrack]);
+  }, [ensureAudioGraph, skipToNextTrack]);
 
   const handlePressEnd = useCallback(() => {
     if (isLongPress.current) cooldownUntil.current = Date.now() + 250;
@@ -335,7 +310,6 @@ function HomeInner() {
         if (!files?.length) return;
         bgmListRef.current  = shuffle(files);
         bgmIndexRef.current = 0;
-        trackQueueRef.current = buildTrackQueue(bgmListRef.current, 0, "random");
         playTrack(0);
       })
       .catch(() => {});
@@ -397,7 +371,7 @@ function HomeInner() {
         onEnded={() => {
           const list = bgmListRef.current;
           if (!list.length) return;
-          bgmIndexRef.current = getNextTrackIndex("next");
+          bgmIndexRef.current = getNextTrackIndex();
           playTrack(bgmIndexRef.current);
         }}
       />
