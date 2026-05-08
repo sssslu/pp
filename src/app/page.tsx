@@ -21,9 +21,10 @@ const PAGE_VARIANTS = {
   out:     { opacity: 0, y: -20 },
 } as const;
 
-const VOLUME_BTN: Record<"full" | "half" | "off", string> = {
+type VolumeState = "full" | "off";
+
+const VOLUME_BTN: Record<VolumeState, string> = {
   full: "bg-cyan-900/20 border-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.5)] hover:shadow-[0_0_30px_rgba(34,211,238,0.8)]",
-  half: "bg-yellow-900/20 border-yellow-400 shadow-[0_0_20px_rgba(250,204,21,0.5)] hover:shadow-[0_0_30px_rgba(250,204,21,0.8)]",
   off:  "bg-red-900/20 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.5)] hover:shadow-[0_0_30px_rgba(239,68,68,0.8)]",
 };
 
@@ -34,8 +35,6 @@ const BGM_VISUAL_COLORS: Record<string, string> = {
   bgm4: "#ec4899",
   bgm5: "#facc15",
 };
-
-type BgmVisualWindow = Window & { __bgmBeatPulse?: number };
 
 // ── 유틸 ──────────────────────────────────────────────────────────────
 
@@ -53,24 +52,20 @@ function getBgmVisualColor(fileName: string): string {
   return BGM_VISUAL_COLORS[key] ?? "#06b6d4";
 }
 
-function getDifferentTrackIndex(list: string[], currentIndex: number, mode: "random" | "next"): number {
+function buildTrackQueue(list: string[], currentIndex: number, mode: "random" | "next"): number[] {
   const currentTrack = list[currentIndex];
-  const candidates = list
-    .map((track, index) => ({ track, index }))
-    .filter(({ track }) => track !== currentTrack);
-
-  if (candidates.length === 0) return currentIndex;
+  const candidates = list.map((track, index) => ({ track, index })).filter(({ track }) => track !== currentTrack);
 
   if (mode === "random") {
-    return candidates[Math.floor(Math.random() * candidates.length)].index;
+    return shuffle(candidates.map(({ index }) => index));
   }
 
-  for (let step = 1; step <= list.length; step++) {
-    const nextIndex = (currentIndex + step) % list.length;
-    if (list[nextIndex] !== currentTrack) return nextIndex;
+  const queue: number[] = [];
+  for (let step = 1; step < list.length; step++) {
+    const index = (currentIndex + step) % list.length;
+    if (list[index] !== currentTrack) queue.push(index);
   }
-
-  return candidates[0].index;
+  return queue;
 }
 
 // ── 아이콘 ────────────────────────────────────────────────────────────
@@ -81,16 +76,6 @@ function MusicOnIcon() {
       className="w-6 h-6 text-cyan-400 drop-shadow-[0_0_5px_rgba(34,211,238,1)] animate-pulse">
       <path strokeLinecap="round" strokeLinejoin="round"
         d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" />
-    </svg>
-  );
-}
-
-function MusicHalfIcon() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"
-      className="w-6 h-6 text-yellow-400 drop-shadow-[0_0_5px_rgba(250,204,21,1)]">
-      <path strokeLinecap="round" strokeLinejoin="round"
-        d="M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" />
     </svg>
   );
 }
@@ -120,27 +105,18 @@ function HomeInner() {
   const { t } = useLanguage();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [viewCount, setViewCount]         = useState(-1);
-  const [volumeState, setVolumeState]     = useState<"full" | "half" | "off">("full");
+  const [volumeState, setVolumeState]     = useState<VolumeState>("full");
 
   const audioRef      = useRef<HTMLAudioElement>(null);
   const bgmListRef    = useRef<string[]>([]);
   const bgmIndexRef   = useRef(0);
+  const trackQueueRef = useRef<number[]>([]);
   // Web Audio API refs — enables volume control on mobile (iOS)
   const audioCtxRef   = useRef<AudioContext | null>(null);
   const gainNodeRef   = useRef<GainNode | null>(null);
-  const analyserRef   = useRef<AnalyserNode | null>(null);
-  const freqDataRef   = useRef<Uint8Array<ArrayBuffer> | null>(null);
-  const visualRafRef  = useRef<number | null>(null);
-  const beatFloorRef  = useRef(0.04);
-  const beatPeakRef   = useRef(0.18);
-  const beatEnvRef    = useRef(0);
-  const beatFluxAvgRef = useRef(0);
-  const beatFluxDevRef = useRef(0.025);
-  const beatBandsRef  = useRef<number[]>([]);
-  const beatPulseRef  = useRef(0);
-  const lastBeatAtRef = useRef(0);
   const gainValueRef  = useRef(0.3); // desired gain before AudioContext exists
-  const volumeStateRef = useRef<"full" | "half" | "off">("full");
+  const volumeStateRef = useRef<VolumeState>("full");
+  const fadeTimersRef = useRef<ReturnType<typeof setInterval>[]>([]);
 
   // Long-press refs
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -151,22 +127,14 @@ function HomeInner() {
 
   const updateBgmVisualColor = useCallback((fileName: string, transition = false) => {
     const color = getBgmVisualColor(fileName);
-    beatFloorRef.current = 0.04;
-    beatPeakRef.current = 0.18;
-    beatEnvRef.current = 0;
-    beatFluxAvgRef.current = 0;
-    beatFluxDevRef.current = 0.025;
-    beatBandsRef.current = [];
-    beatPulseRef.current = 0;
-    lastBeatAtRef.current = 0;
     window.dispatchEvent(new CustomEvent("bgm-visual-track", {
       detail: { color, transition },
     }));
     return color;
   }, []);
 
-  const setSyncedVolumeState = useCallback((state: "full" | "half" | "off") => {
-    const nextGain = state === "full" ? 0.3 : state === "half" ? 0.15 : 0;
+  const setSyncedVolumeState = useCallback((state: VolumeState) => {
+    const nextGain = state === "full" ? 0.3 : 0;
     const audio = audioRef.current;
     const gain = gainNodeRef.current;
 
@@ -180,93 +148,37 @@ function HomeInner() {
     if (state === "off") audio?.pause();
   }, []);
 
-  const startBeatVisualLoop = useCallback(() => {
-    if (visualRafRef.current !== null) return;
+  const clearFadeTimers = useCallback(() => {
+    for (const timer of fadeTimersRef.current) clearInterval(timer);
+    fadeTimersRef.current = [];
+  }, []);
 
-    const tick = () => {
-      const analyser = analyserRef.current;
-      const data = freqDataRef.current;
-      let pulse = 0;
+  const normalizePlaybackRate = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.defaultPlaybackRate = 1;
+    audio.playbackRate = 1;
+  }, []);
 
-      if (analyser && data) {
-        analyser.getByteFrequencyData(data);
+  const getNextTrackIndex = useCallback((mode: "random" | "next") => {
+    const list = bgmListRef.current;
+    const currentIndex = bgmIndexRef.current;
+    if (list.length < 2) return currentIndex;
 
-        const audioCtx = audioCtxRef.current;
-        const hzPerBin = (audioCtx?.sampleRate ?? 44100) / analyser.fftSize;
-        const kickStart = Math.max(1, Math.floor(45 / hzPerBin));
-        const kickEnd = Math.min(data.length, Math.ceil(170 / hzPerBin));
-        const bassEnd = Math.min(data.length, Math.ceil(340 / hzPerBin));
-        const lowEnd = Math.min(data.length, Math.ceil(620 / hzPerBin));
+    const currentTrack = list[currentIndex];
+    trackQueueRef.current = trackQueueRef.current.filter((index) => list[index] && list[index] !== currentTrack);
 
-        let kickSum = 0;
-        let kickWeight = 0;
-        let bassSum = 0;
-        let bassCount = 0;
-        let fluxSum = 0;
-        let fluxWeight = 0;
-        const prev = beatBandsRef.current;
+    if (trackQueueRef.current.length === 0) {
+      trackQueueRef.current = buildTrackQueue(list, currentIndex, mode);
+    }
 
-        for (let i = kickStart; i < kickEnd; i++) {
-          const freq = i * hzPerBin;
-          const center = 92;
-          const weight = 1.2 + Math.max(0, 1 - Math.abs(freq - center) / 90) * 2.4;
-          const value = data[i] / 255;
-          kickSum += value * weight;
-          kickWeight += weight;
-        }
-
-        for (let i = kickEnd; i < bassEnd; i++) {
-          bassSum += data[i] / 255;
-          bassCount++;
-        }
-
-        for (let i = kickStart; i < lowEnd; i++) {
-          const value = data[i] / 255;
-          const diff = Math.max(0, value - (prev[i] ?? 0));
-          const weight = i < kickEnd ? 2.1 : i < bassEnd ? 1.25 : 0.55;
-          fluxSum += diff * weight;
-          fluxWeight += weight;
-          prev[i] = value;
-        }
-
-        const kick = kickSum / Math.max(1, kickWeight);
-        const bass = bassSum / Math.max(1, bassCount);
-        const energy = Math.min(1, Math.pow(kick * 0.78 + bass * 0.22, 0.62) * 1.42);
-        const flux = fluxSum / Math.max(1, fluxWeight);
-
-        beatFloorRef.current += (energy - beatFloorRef.current) * 0.006;
-        beatPeakRef.current = Math.max(beatPeakRef.current * 0.994, energy, beatFloorRef.current + 0.08);
-        const range = Math.max(0.05, beatPeakRef.current - beatFloorRef.current);
-        const normalized = Math.max(0, Math.min(1, (energy - beatFloorRef.current) / range));
-        beatEnvRef.current += (normalized - beatEnvRef.current) * (normalized > beatEnvRef.current ? 0.68 : 0.12);
-
-        beatFluxAvgRef.current += (flux - beatFluxAvgRef.current) * 0.018;
-        beatFluxDevRef.current += (Math.abs(flux - beatFluxAvgRef.current) - beatFluxDevRef.current) * 0.03;
-        const onset = Math.max(0, Math.min(1, (flux - beatFluxAvgRef.current - beatFluxDevRef.current * 0.65) / Math.max(0.012, beatFluxDevRef.current * 2.35)));
-
-        const now = performance.now();
-        if (onset > 0.42 && now - lastBeatAtRef.current > 115) {
-          beatPulseRef.current = Math.max(beatPulseRef.current, Math.min(1, 0.55 + onset * 0.7));
-          lastBeatAtRef.current = now;
-        }
-
-        const sustained = Math.max(0, (beatEnvRef.current - 0.36) * 1.25);
-        beatPulseRef.current = Math.max(beatPulseRef.current * 0.84, sustained, onset * 0.62);
-        pulse = Math.min(1, beatPulseRef.current);
-      }
-
-      (window as BgmVisualWindow).__bgmBeatPulse = pulse;
-      visualRafRef.current = requestAnimationFrame(tick);
-    };
-
-    visualRafRef.current = requestAnimationFrame(tick);
+    return trackQueueRef.current.shift() ?? currentIndex;
   }, []);
 
   /** Lazily create (or resume) the Web Audio graph on first user interaction. */
   const ensureAudioGraph = useCallback(() => {
     if (audioCtxRef.current) {
       if (audioCtxRef.current.state === "suspended") audioCtxRef.current.resume();
-      startBeatVisualLoop();
       return;
     }
     const audio = audioRef.current;
@@ -274,30 +186,24 @@ function HomeInner() {
     const ctx = new (window.AudioContext ||
       (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
     const gain = ctx.createGain();
-    const analyser = ctx.createAnalyser();
-    analyser.fftSize = 1024;
-    analyser.smoothingTimeConstant = 0.32;
     gain.gain.value = volumeStateRef.current === "off" ? 0 : gainValueRef.current;
     const source = ctx.createMediaElementSource(audio);
-    source.connect(analyser);
-    analyser.connect(gain);
+    source.connect(gain);
     gain.connect(ctx.destination);
     // Hand volume control entirely to the gain node
     try { audio.volume = 1; } catch (_) {}
     audioCtxRef.current = ctx;
     gainNodeRef.current = gain;
-    analyserRef.current = analyser;
-    freqDataRef.current = new Uint8Array(analyser.frequencyBinCount);
     ctx.resume();
-    startBeatVisualLoop();
     if (volumeStateRef.current === "off") audio.pause();
-  }, [startBeatVisualLoop]);
+  }, []);
 
   const playTrack = useCallback((index: number) => {
     const audio = audioRef.current;
     if (!audio || bgmListRef.current.length === 0) return;
     const track = bgmListRef.current[index];
     audio.src = `/bgm/${track}`;
+    normalizePlaybackRate();
     updateBgmVisualColor(track);
     // Set element volume only as fallback before Web Audio is initialised
     try { audio.volume = gainValueRef.current; } catch (_) {}
@@ -306,24 +212,23 @@ function HomeInner() {
         if (volumeStateRef.current === "off") audio.pause();
       })
       .catch(() => setSyncedVolumeState("off"));
-  }, [setSyncedVolumeState, updateBgmVisualColor]);
+  }, [normalizePlaybackRate, setSyncedVolumeState, updateBgmVisualColor]);
 
   const cycleVolume = useCallback(() => {
     ensureAudioGraph();
     if (volumeState === "full") {
-      setSyncedVolumeState("half");
-    } else if (volumeState === "half") {
       setSyncedVolumeState("off");
     } else {
       setSyncedVolumeState("full");
+      normalizePlaybackRate();
       audioRef.current?.play().catch(() => {});
     }
-  }, [ensureAudioGraph, setSyncedVolumeState, volumeState]);
+  }, [ensureAudioGraph, normalizePlaybackRate, setSyncedVolumeState, volumeState]);
 
   /** 랜덤 다른 곡으로 크로스페이드 전환 */
   const skipToRandomTrack = useCallback((originX: number, originY: number) => {
     const list = bgmListRef.current;
-    const next = getDifferentTrackIndex(list, bgmIndexRef.current, "random");
+    const next = getNextTrackIndex("random");
     if (!list.length || list[next] === list[bgmIndexRef.current]) return;
     const nextColor = updateBgmVisualColor(list[next], true);
 
@@ -336,10 +241,12 @@ function HomeInner() {
     const gain = gainNodeRef.current;
     const audio = audioRef.current;
     if (!audio) return;
+    clearFadeTimers();
 
     if (volumeStateRef.current === "off") {
       bgmIndexRef.current = next;
       audio.src = `/bgm/${list[next]}`;
+      normalizePlaybackRate();
       audio.pause();
       return;
     }
@@ -360,8 +267,9 @@ function HomeInner() {
         // swap track
         bgmIndexRef.current = next;
         audio.src = `/bgm/${list[next]}`;
+        normalizePlaybackRate();
         updateBgmVisualColor(list[next], true);
-        audio.play().catch(() => {});
+        audio.play().catch(() => setSyncedVolumeState("off"));
         // fade in
         let stepIn = 0;
         const fadeIn = setInterval(() => {
@@ -375,16 +283,17 @@ function HomeInner() {
             else try { audio.volume = savedGain; } catch (_) {}
           }
         }, FADE_MS / steps);
+        fadeTimersRef.current.push(fadeIn);
       }
     }, FADE_MS / steps);
-  }, [updateBgmVisualColor]);
+    fadeTimersRef.current.push(fadeOut);
+  }, [clearFadeTimers, getNextTrackIndex, normalizePlaybackRate, setSyncedVolumeState, updateBgmVisualColor]);
 
   useEffect(() => {
     return () => {
-      if (visualRafRef.current !== null) cancelAnimationFrame(visualRafRef.current);
-      (window as BgmVisualWindow).__bgmBeatPulse = 0;
+      clearFadeTimers();
     };
-  }, []);
+  }, [clearFadeTimers]);
 
   // ── Long-press handlers ───────────────────────────────────────────
 
@@ -426,6 +335,7 @@ function HomeInner() {
         if (!files?.length) return;
         bgmListRef.current  = shuffle(files);
         bgmIndexRef.current = 0;
+        trackQueueRef.current = buildTrackQueue(bgmListRef.current, 0, "random");
         playTrack(0);
       })
       .catch(() => {});
@@ -487,7 +397,7 @@ function HomeInner() {
         onEnded={() => {
           const list = bgmListRef.current;
           if (!list.length) return;
-          bgmIndexRef.current = getDifferentTrackIndex(list, bgmIndexRef.current, "next");
+          bgmIndexRef.current = getNextTrackIndex("next");
           playTrack(bgmIndexRef.current);
         }}
       />
@@ -509,7 +419,7 @@ function HomeInner() {
         aria-label="Cycle volume"
         className={`fixed bottom-8 right-8 z-50 flex items-center justify-center w-14 h-14 rounded-xl border-2 transition-all duration-300 backdrop-blur-md select-none ${VOLUME_BTN[volumeState]}`}
       >
-        {volumeState === "full" ? <MusicOnIcon /> : volumeState === "half" ? <MusicHalfIcon /> : <MusicOffIcon />}
+        {volumeState === "full" ? <MusicOnIcon /> : <MusicOffIcon />}
       </button>
 
       <main>
