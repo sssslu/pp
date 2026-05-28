@@ -28,12 +28,25 @@ const VOLUME_BTN: Record<VolumeState, string> = {
   off:  "bg-red-900/20 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.5)] hover:shadow-[0_0_30px_rgba(239,68,68,0.8)]",
 };
 
-const BGM_VISUAL_COLORS: Record<string, string> = {
-  bgm1: "#06b6d4",
-  bgm2: "#8b5cf6",
-  bgm3: "#10b981",
-  bgm4: "#ec4899",
-  bgm5: "#facc15",
+interface TrackVisual {
+  bg: string;
+  shape: string;
+  ripple: string;
+}
+
+const DEFAULT_TRACK_VISUAL: TrackVisual = {
+  bg: "#06b6d4",
+  shape: "#ef4444",
+  ripple: "#06b6d4",
+};
+
+const BGM_VISUAL_COLORS: Record<string, TrackVisual> = {
+  bgm1: { bg: "#0e7490", shape: "#67e8f9", ripple: "#fb7185" },
+  bgm2: { bg: "#4c1d95", shape: "#f0abfc", ripple: "#22d3ee" },
+  bgm3: { bg: "#14532d", shape: "#bef264", ripple: "#fb7185" },
+  bgm4: { bg: "#9f1239", shape: "#fda4af", ripple: "#22d3ee" },
+  bgm5: { bg: "#6b7280", shape: "#facc15", ripple: "#facc15" },
+  bgm6: { bg: "#e5e7eb", shape: "#ef4444", ripple: "#ef4444" },
 };
 
 // ── 유틸 ──────────────────────────────────────────────────────────────
@@ -47,9 +60,9 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-function getBgmVisualColor(fileName: string): string {
+function getBgmVisualColor(fileName: string): TrackVisual {
   const key = fileName.toLowerCase().replace(/\.[^.]+$/, "");
-  return BGM_VISUAL_COLORS[key] ?? "#06b6d4";
+  return BGM_VISUAL_COLORS[key] ?? DEFAULT_TRACK_VISUAL;
 }
 
 // ── 아이콘 ────────────────────────────────────────────────────────────
@@ -109,11 +122,11 @@ function HomeInner() {
   const LONG_PRESS_MS  = 600;
 
   const updateBgmVisualColor = useCallback((fileName: string, transition = false) => {
-    const color = getBgmVisualColor(fileName);
+    const visual = getBgmVisualColor(fileName);
     window.dispatchEvent(new CustomEvent("bgm-visual-track", {
-      detail: { color, transition },
+      detail: { ...visual, transition },
     }));
-    return color;
+    return visual;
   }, []);
 
   const setSyncedVolumeState = useCallback((state: VolumeState) => {
@@ -205,11 +218,11 @@ function HomeInner() {
     const list = bgmListRef.current;
     const next = getNextTrackIndex();
     if (!list.length || list[next] === list[bgmIndexRef.current]) return;
-    const nextColor = updateBgmVisualColor(list[next], true);
+    const nextVisual = updateBgmVisualColor(list[next], true);
 
     // 다음 곡 색의 진한 리플 발사
     window.dispatchEvent(new CustomEvent("ascii-ripple", {
-      detail: { x: originX, y: originY, color: nextColor },
+      detail: { x: originX, y: originY, color: nextVisual.ripple },
     }));
 
     // 볼륨 페이드아웃 → 곡 교체 → 페이드인

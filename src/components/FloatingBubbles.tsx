@@ -157,6 +157,7 @@ function BackgroundMatrix() {
 
     let bgVisualColor = "#06b6d4";
     let centerShapeColor = contrastShapeColor(bgVisualColor);
+    let rippleVisualColor = bgVisualColor;
     let cols = 0;
     let rows = 0;
     let cells: Cell[][] = [];
@@ -185,13 +186,16 @@ function BackgroundMatrix() {
     };
 
     const onBgmVisualTrack = (e: Event) => {
-      const { color, transition } = (e as CustomEvent).detail;
-      if (typeof color !== "string") return;
-      bgVisualColor = color;
-      centerShapeColor = contrastShapeColor(color);
-      if (transition) return;
+      const detail = (e as CustomEvent).detail;
+      const bg = typeof detail.bg === "string" ? detail.bg
+        : typeof detail.color === "string" ? detail.color : null;
+      if (!bg) return;
+      bgVisualColor = bg;
+      centerShapeColor = typeof detail.shape === "string" ? detail.shape : contrastShapeColor(bg);
+      rippleVisualColor = typeof detail.ripple === "string" ? detail.ripple : bg;
+      if (detail.transition) return;
       for (let row = 0; row < cells.length; row++) {
-        for (let col = 0; col < cells[row].length; col++) cells[row][col].color = color;
+        for (let col = 0; col < cells[row].length; col++) cells[row][col].color = bg;
       }
     };
 
@@ -231,7 +235,7 @@ function BackgroundMatrix() {
         speed: RIPPLE_SPEED,
         band,
         life: maxDist / RIPPLE_SPEED + 0.1,
-        color: typeof detail.color === "string" ? detail.color : bgVisualColor,
+        color: typeof detail.color === "string" ? detail.color : rippleVisualColor,
       });
     };
 
