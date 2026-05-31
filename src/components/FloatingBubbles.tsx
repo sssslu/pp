@@ -24,15 +24,34 @@ const RIPPLE_BAND_THICK = 180;
 const RIPPLE_BAND_THIN  = 25;
 const RIPPLE_SPEED      = 600;
 
+// ── 불가능 삼각형 · 철가루 자기장 ─────────────────────────────────────
+// 세 개의 막대(=전류가 흐르는 도선)가 삼각형을 이루고, 각 셀의 ASCII 문자가
+// 그 지점의 자기장 방향(- \ | /)으로 정렬되어 "철가루 결"을 그린다.
+const FIELD_TANGENT_W = 1.0;   // 막대를 따라 흐르는 성분
+const FIELD_CURL_W    = 0.55;  // 막대를 휘감는 성분 (철가루 곡선)
+const FIELD_FALLOFF_R = 0.14;  // 거리 감쇠 스케일 (centerShapeRadius 대비)
+const BAR_SOLID_R     = 0.055; // 막대(빔) 두께 (centerShapeRadius 대비)
+const BAR_OVERSHOOT   = 1.7;   // 모서리에서 막대가 다음 막대 위로 겹치는 양 (빔두께 배수)
+const FIELD_BOUND_R   = 1.60;  // 자기장 연산 영역 반경 (centerShapeRadius 대비)
+const BEAM_ALPHA      = 0.95;  // 빔(막대 본체) 밝기
+const HALO_ALPHA_MAX  = 0.5;   // 주변 철가루 최대 밝기
+const HALO_GAIN       = 0.8;   // 자기장 세기 → 밝기 환산
+const HALO_MIN        = 0.07;  // 이보다 약하면 일반 배경 노이즈로 둠
+
+// 살아 움직이는 impossible figure — 끝없이 회전·호흡·비틀림 (#21 모핑)
+const ROT_SPEED    = 0.14;     // 면내 회전 (rad/s)
+const TWIST_AMP    = 0.13;     // 모서리 각도 뒤틀림 진폭 (rad)
+const TWIST_SPEED  = 0.6;
+const BREATH_AMP   = 0.05;     // 반지름 호흡 진폭 (비율)
+const BREATH_SPEED = 0.5;
+
+// 자기장 각도 → ASCII 방향 문자. 화면 y가 아래로 향하므로 \ 와 / 위치에 주의.
+const ORIENT_CHARS = ["-", "\\", "|", "/"];
+
 interface Cell {
   ch: string;
   color: string;
   alpha: number;
-}
-
-interface ShapeDef {
-  vertices: [number, number, number][];
-  edges: [number, number][];
 }
 
 interface Ripple {
@@ -45,32 +64,11 @@ interface Ripple {
   color: string;
 }
 
-const PHI = (1 + Math.sqrt(5)) / 2;
-const ICO_RAW: [number, number, number][] = [
-  [0, 1, PHI], [0, -1, PHI], [0, 1, -PHI], [0, -1, -PHI],
-  [1, PHI, 0], [-1, PHI, 0], [1, -PHI, 0], [-1, -PHI, 0],
-  [PHI, 0, 1], [-PHI, 0, 1], [PHI, 0, -1], [-PHI, 0, -1],
-];
-const ICO_VERTS: [number, number, number][] = ICO_RAW.map((v) => {
-  const len = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
-  return [v[0] / len, v[1] / len, v[2] / len];
-});
-const ICO_EDGE_LEN = (() => {
-  const dx = ICO_VERTS[0][0] - ICO_VERTS[1][0];
-  const dy = ICO_VERTS[0][1] - ICO_VERTS[1][1];
-  const dz = ICO_VERTS[0][2] - ICO_VERTS[1][2];
-  return Math.sqrt(dx * dx + dy * dy + dz * dz);
-})();
-const ICO_EDGES: [number, number][] = [];
-for (let i = 0; i < ICO_VERTS.length; i++) {
-  for (let j = i + 1; j < ICO_VERTS.length; j++) {
-    const dx = ICO_VERTS[i][0] - ICO_VERTS[j][0];
-    const dy = ICO_VERTS[i][1] - ICO_VERTS[j][1];
-    const dz = ICO_VERTS[i][2] - ICO_VERTS[j][2];
-    if (Math.abs(Math.sqrt(dx * dx + dy * dy + dz * dz) - ICO_EDGE_LEN) < 0.01) ICO_EDGES.push([i, j]);
-  }
+interface Bar {
+  x1: number; y1: number; x2: number; y2: number; // 막대 척추(spine) 양 끝
+  tx: number; ty: number;                          // 단위 접선
+  lenSq: number;
 }
-const ICOSAHEDRON: ShapeDef = { vertices: ICO_VERTS, edges: ICO_EDGES };
 
 function randItem<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
@@ -86,62 +84,40 @@ function contrastShapeColor(bgColor: string): string {
   return COLORS.reduce((best, color) => hexDistance(color, bgColor) > hexDistance(best, bgColor) ? color : best, COLORS[0]);
 }
 
-function rotate3D(
-  x: number, y: number, z: number,
-  rx: number, ry: number, rz: number,
-): [number, number, number] {
-  let ny = y * Math.cos(rx) - z * Math.sin(rx);
-  let nz = y * Math.sin(rx) + z * Math.cos(rx);
-  y = ny; z = nz;
-
-  let nx = x * Math.cos(ry) + z * Math.sin(ry);
-  nz = -x * Math.sin(ry) + z * Math.cos(ry);
-  x = nx; z = nz;
-
-  nx = x * Math.cos(rz) - y * Math.sin(rz);
-  ny = x * Math.sin(rz) + y * Math.cos(rz);
-  return [nx, ny, z];
+/** 자기장 벡터의 방향을 가장 가까운 ASCII 결 문자로 양자화한다. */
+function fieldChar(fx: number, fy: number): string {
+  let a = Math.atan2(fy, fx);
+  if (a < 0) a += Math.PI;            // 선(line) 방향이므로 0..π로 접는다
+  const s = Math.round(a / (Math.PI / 4)) % 4;
+  return ORIENT_CHARS[s];
 }
 
-function distToSegSq(
-  px: number, py: number,
-  x1: number, y1: number, x2: number, y2: number,
-): number {
-  const dx = x2 - x1, dy = y2 - y1;
-  const lenSq = dx * dx + dy * dy;
-  if (lenSq < 0.001) return (px - x1) ** 2 + (py - y1) ** 2;
-  const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / lenSq));
-  return (px - (x1 + t * dx)) ** 2 + (py - (y1 + t * dy)) ** 2;
-}
-
-function projectShape(
-  def: ShapeDef,
-  time: number,
-  cx: number,
-  cy: number,
-  radius: number,
-  rotation: { x: number; y: number; z: number; offset: number },
-): { edges: [number, number, number, number][]; boundR: number } {
-  const pts: [number, number][] = [];
-  const rx = time * rotation.x + rotation.offset;
-  const ry = time * rotation.y + rotation.offset * 0.7;
-  const rz = time * rotation.z + rotation.offset * 1.3;
-
-  for (const [x0, y0, z0] of def.vertices) {
-    const [x, y] = rotate3D(x0, y0, z0, rx, ry, rz);
-    pts.push([cx + x * radius, cy + y * radius]);
+/**
+ * 불가능 삼각형을 이루는 세 막대를 만든다.
+ * 회전(rot)에 더해 모서리마다 위상이 다른 비틀림·호흡을 주어 영원히 살아 움직이게 한다.
+ * 막대 끝을 BAR_OVERSHOOT 만큼 늘려 다음 막대 위로 겹치게 하면, 순환 occlusion과 맞물려
+ * 펜로즈 삼각형의 "불가능한 짜임"이 만들어진다.
+ */
+function buildTriangleBars(cx: number, cy: number, R: number, rot: number, time: number, overshoot: number): Bar[] {
+  const corners: [number, number][] = [];
+  for (let k = 0; k < 3; k++) {
+    const ang = rot + k * (2 * Math.PI / 3) + TWIST_AMP * Math.sin(time * TWIST_SPEED + k * 2.1);
+    const rr  = R * (1 + BREATH_AMP * Math.sin(time * BREATH_SPEED + k * 1.7));
+    corners.push([cx + Math.cos(ang) * rr, cy + Math.sin(ang) * rr]);
   }
-
-  let maxR = 0;
-  for (const [x, y] of pts) {
-    const d = (x - cx) ** 2 + (y - cy) ** 2;
-    if (d > maxR) maxR = d;
+  const bars: Bar[] = [];
+  for (let k = 0; k < 3; k++) {
+    const [ax, ay] = corners[k];
+    const [bx, by] = corners[(k + 1) % 3];
+    const dx = bx - ax, dy = by - ay;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    const tx = dx / len, ty = dy / len;
+    const ex = tx * overshoot, ey = ty * overshoot;
+    const x1 = ax - ex, y1 = ay - ey, x2 = bx + ex, y2 = by + ey;
+    const sdx = x2 - x1, sdy = y2 - y1;
+    bars.push({ x1, y1, x2, y2, tx, ty, lenSq: sdx * sdx + sdy * sdy });
   }
-
-  return {
-    edges: def.edges.map(([i, j]) => [pts[i][0], pts[i][1], pts[j][0], pts[j][1]]),
-    boundR: Math.sqrt(maxR),
-  };
+  return bars;
 }
 
 function BackgroundMatrix() {
@@ -164,9 +140,7 @@ function BackgroundMatrix() {
     let centerShapeRadius = 0;
 
     const rotation = {
-      x: (Math.random() < 0.5 ? -1 : 1) * (1.15 + Math.random() * 0.5),
-      y: (Math.random() < 0.5 ? -1 : 1) * (1.35 + Math.random() * 0.55),
-      z: (Math.random() < 0.5 ? -1 : 1) * (0.95 + Math.random() * 0.45),
+      dir: Math.random() < 0.5 ? -1 : 1,
       offset: Math.random() * Math.PI * 2,
     };
 
@@ -267,15 +241,23 @@ function BackgroundMatrix() {
       });
       const hasRipples = rippleFrames.length > 0;
 
+      // ── 불가능 삼각형 자기장 준비 ──────────────────────────────
       const cx = canvas.width / 2;
       const cy = canvas.height / 2;
-      const edgeW = Math.max(CELL * 0.5, centerShapeRadius * 0.035);
-      const projectedShape = projectShape(ICOSAHEDRON, time, cx, cy, centerShapeRadius, rotation);
-      const shapeOuterSq = (projectedShape.boundR + CELL * 2) ** 2;
-      const edgeWSq = edgeW * edgeW;
+      const R  = centerShapeRadius;
+      const barSolidPx = Math.max(CELL * 0.6, R * BAR_SOLID_R);
+      const barSolid2  = barSolidPx * barSolidPx;
+      const fallPx     = R * FIELD_FALLOFF_R;
+      const invFall2   = 1 / (fallPx * fallPx);
+      const boundR     = R * FIELD_BOUND_R;
+      const boundSq    = boundR * boundR;
+      const rot  = time * ROT_SPEED * rotation.dir + rotation.offset;
+      const bars = buildTriangleBars(cx, cy, R, rot, time, barSolidPx * BAR_OVERSHOOT);
+      const b0 = bars[0], b1 = bars[1], b2 = bars[2];
 
       for (let row = 0; row < rows; row++) {
         const py = row * CELL + CELL / 2;
+        const try0 = py - cy;
         for (let col = 0; col < cols; col++) {
           const px = col * CELL + CELL / 2;
           const cell = cells[row][col];
@@ -300,30 +282,71 @@ function BackgroundMatrix() {
             }
           }
 
-          if (cell.ch === " ") continue;
+          // ── 자기장 영역 안이면 철가루 결을 그린다 ──────────────
+          const trx = px - cx;
+          if (trx * trx + try0 * try0 <= boundSq) {
+            let fx = 0, fy = 0, near = 0;
+            let s0 = false, s1 = false, s2 = false;
+            let d2_0 = 0, d2_1 = 0, d2_2 = 0;
 
-          let isShapeCell = false;
-          const dx = px - cx, dy = py - cy;
-          if (dx * dx + dy * dy <= shapeOuterSq) {
-            const edges = projectedShape.edges;
-            for (let i = 0; i < edges.length; i++) {
-              const edge = edges[i];
-              if (distToSegSq(px, py, edge[0], edge[1], edge[2], edge[3]) < edgeWSq) {
-                isShapeCell = true;
-                break;
+            for (let k = 0; k < 3; k++) {
+              const s = k === 0 ? b0 : k === 1 ? b1 : b2;
+              const sdx = s.x2 - s.x1, sdy = s.y2 - s.y1;
+              let t = ((px - s.x1) * sdx + (py - s.y1) * sdy) / s.lenSq;
+              t = t < 0 ? 0 : t > 1 ? 1 : t;
+              const qx = s.x1 + t * sdx, qy = s.y1 + t * sdy;
+              const rxv = px - qx, ryv = py - qy;
+              const d2 = rxv * rxv + ryv * ryv;
+              const w = 1 / (1 + d2 * invFall2);
+
+              // 막대를 따라 흐르는 성분(tangent) + 휘감는 성분(curl)
+              let perpx = 0, perpy = 0;
+              if (d2 > 0.0001) {
+                const invd = 1 / Math.sqrt(d2);
+                perpx = -ryv * invd;
+                perpy = rxv * invd;
               }
+              fx += w * (s.tx * FIELD_TANGENT_W + perpx * FIELD_CURL_W);
+              fy += w * (s.ty * FIELD_TANGENT_W + perpy * FIELD_CURL_W);
+              near += w;
+
+              if (d2 < barSolid2) {
+                if (k === 0) { s0 = true; d2_0 = d2; }
+                else if (k === 1) { s1 = true; d2_1 = d2; }
+                else { s2 = true; d2_2 = d2; }
+              }
+            }
+
+            // 순환 occlusion: 0이 1 위, 1이 2 위, 2가 0 위 → 비추이적 = 불가능
+            const cnt = (s0 ? 1 : 0) + (s1 ? 1 : 0) + (s2 ? 1 : 0);
+            let winner = -1;
+            if (cnt === 1) winner = s0 ? 0 : s1 ? 1 : 2;
+            else if (cnt === 2) winner = (s0 && s1) ? 0 : (s1 && s2) ? 1 : 2;
+            else if (cnt === 3) winner = (d2_0 <= d2_1 && d2_0 <= d2_2) ? 0 : (d2_1 <= d2_2 ? 1 : 2);
+
+            if (winner >= 0) {
+              const wb = winner === 0 ? b0 : winner === 1 ? b1 : b2;
+              cell.color = centerShapeColor;
+              ctx.globalAlpha = BEAM_ALPHA;
+              ctx.fillStyle = centerShapeColor;
+              ctx.fillText(fieldChar(wb.tx, wb.ty), col * CELL, row * CELL);
+              continue;
+            }
+
+            if (near > HALO_MIN && cell.ch !== " ") {
+              cell.color = centerShapeColor;
+              ctx.globalAlpha = Math.min(HALO_ALPHA_MAX, near * HALO_GAIN);
+              ctx.fillStyle = centerShapeColor;
+              ctx.fillText(fieldChar(fx, fy), col * CELL, row * CELL);
+              continue;
             }
           }
 
-          if (isShapeCell) {
-            ctx.globalAlpha = 1;
-            ctx.fillStyle = centerShapeColor;
-            ctx.fillText(nextBubbleCh(), col * CELL, row * CELL);
-          } else {
-            ctx.globalAlpha = Math.min(BACKGROUND_ALPHA_MAX, cell.alpha * BACKGROUND_ALPHA_MULT);
-            ctx.fillStyle = cell.color;
-            ctx.fillText(cell.ch, col * CELL, row * CELL);
-          }
+          if (cell.ch === " ") continue;
+
+          ctx.globalAlpha = Math.min(BACKGROUND_ALPHA_MAX, cell.alpha * BACKGROUND_ALPHA_MULT);
+          ctx.fillStyle = cell.color;
+          ctx.fillText(cell.ch, col * CELL, row * CELL);
         }
       }
 
