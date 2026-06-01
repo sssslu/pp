@@ -156,14 +156,12 @@ function HomeInner() {
     audio.playbackRate = 1;
   }, []);
 
-  const getTrackIndexByStep = useCallback((step: number) => {
+  const getNextTrackIndex = useCallback(() => {
     const list = bgmListRef.current;
     const currentIndex = bgmIndexRef.current;
     if (list.length < 2) return currentIndex;
-    return (currentIndex + step + list.length) % list.length;
+    return (currentIndex + 1) % list.length;
   }, []);
-
-  const getNextTrackIndex = useCallback(() => getTrackIndexByStep(1), [getTrackIndexByStep]);
 
   /** Lazily create (or resume) the Web Audio graph on first user interaction. */
   const ensureAudioGraph = useCallback(() => {
@@ -215,10 +213,10 @@ function HomeInner() {
     }
   }, [ensureAudioGraph, normalizePlaybackRate, setSyncedVolumeState, volumeState]);
 
-  /** 페이지 로드 때 만들어진 랜덤 순서를 따라 곡 전환 (step: +1 다음, -1 이전) */
-  const skipToTrack = useCallback((originX: number, originY: number, direction = 1) => {
+  /** 페이지 로드 때 만들어진 랜덤 순서를 따라 다음 곡으로 전환 */
+  const skipToNextTrack = useCallback((originX: number, originY: number) => {
     const list = bgmListRef.current;
-    const next = getTrackIndexByStep(direction);
+    const next = getNextTrackIndex();
     if (!list.length || list[next] === list[bgmIndexRef.current]) return;
     const nextVisual = updateBgmVisualColor(list[next], true);
 
@@ -277,26 +275,13 @@ function HomeInner() {
       }
     }, FADE_MS / steps);
     fadeTimersRef.current.push(fadeOut);
-  }, [clearFadeTimers, getTrackIndexByStep, normalizePlaybackRate, setSyncedVolumeState, updateBgmVisualColor]);
+  }, [clearFadeTimers, getNextTrackIndex, normalizePlaybackRate, setSyncedVolumeState, updateBgmVisualColor]);
 
   useEffect(() => {
     return () => {
       clearFadeTimers();
     };
   }, [clearFadeTimers]);
-
-  // ── 키보드 ← / → 로 이전 / 다음 곡 전환 ──────────────────────────
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
-      const direction = e.key === "ArrowRight" ? 1 : -1;
-      ensureAudioGraph();
-      // 화면 중앙에서 리플 발사
-      skipToTrack(window.innerWidth / 2, window.innerHeight / 2, direction);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [ensureAudioGraph, skipToTrack]);
 
   // ── Long-press handlers ───────────────────────────────────────────
 
@@ -307,9 +292,9 @@ function HomeInner() {
       isLongPress.current = true;
       cooldownUntil.current = Date.now() + 200;
       ensureAudioGraph();
-      skipToTrack(clientX, clientY, 1);
+      skipToNextTrack(clientX, clientY);
     }, LONG_PRESS_MS);
-  }, [ensureAudioGraph, skipToTrack]);
+  }, [ensureAudioGraph, skipToNextTrack]);
 
   const handlePressEnd = useCallback(() => {
     if (isLongPress.current) cooldownUntil.current = Date.now() + 250;
