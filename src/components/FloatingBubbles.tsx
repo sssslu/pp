@@ -45,32 +45,91 @@ interface Ripple {
   color: string;
 }
 
-const PHI = (1 + Math.sqrt(5)) / 2;
-const ICO_RAW: [number, number, number][] = [
-  [0, 1, PHI], [0, -1, PHI], [0, 1, -PHI], [0, -1, -PHI],
-  [1, PHI, 0], [-1, PHI, 0], [1, -PHI, 0], [-1, -PHI, 0],
-  [PHI, 0, 1], [-PHI, 0, 1], [PHI, 0, -1], [-PHI, 0, -1],
-];
-const ICO_VERTS: [number, number, number][] = ICO_RAW.map((v) => {
-  const len = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
-  return [v[0] / len, v[1] / len, v[2] / len];
-});
-const ICO_EDGE_LEN = (() => {
-  const dx = ICO_VERTS[0][0] - ICO_VERTS[1][0];
-  const dy = ICO_VERTS[0][1] - ICO_VERTS[1][1];
-  const dz = ICO_VERTS[0][2] - ICO_VERTS[1][2];
-  return Math.sqrt(dx * dx + dy * dy + dz * dz);
-})();
-const ICO_EDGES: [number, number][] = [];
-for (let i = 0; i < ICO_VERTS.length; i++) {
-  for (let j = i + 1; j < ICO_VERTS.length; j++) {
-    const dx = ICO_VERTS[i][0] - ICO_VERTS[j][0];
-    const dy = ICO_VERTS[i][1] - ICO_VERTS[j][1];
-    const dz = ICO_VERTS[i][2] - ICO_VERTS[j][2];
-    if (Math.abs(Math.sqrt(dx * dx + dy * dy + dz * dz) - ICO_EDGE_LEN) < 0.01) ICO_EDGES.push([i, j]);
+function buildStellaOctangula(): ShapeDef {
+  const tetraA: [number, number, number][] = [
+    [1, 1, 1], [1, -1, -1], [-1, 1, -1], [-1, -1, 1],
+  ];
+  const tetraB: [number, number, number][] = [
+    [-1, -1, -1], [-1, 1, 1], [1, -1, 1], [1, 1, -1],
+  ];
+
+  const norm = Math.sqrt(3);
+  const vertices: [number, number, number][] = [...tetraA, ...tetraB].map(
+    (v) => [v[0] / norm, v[1] / norm, v[2] / norm]
+  );
+
+  const edges: [number, number][] = [];
+  for (const base of [0, 4]) {
+    for (let i = 0; i < 4; i++) {
+      for (let j = i + 1; j < 4; j++) edges.push([base + i, base + j]);
+    }
   }
+
+  return { vertices, edges };
 }
-const ICOSAHEDRON: ShapeDef = { vertices: ICO_VERTS, edges: ICO_EDGES };
+
+const STELLA_OCTANGULA: ShapeDef = buildStellaOctangula();
+
+function buildIcosahedron(): ShapeDef {
+  const phi = (1 + Math.sqrt(5)) / 2;
+  const raw: [number, number, number][] = [
+    [0, 1, phi], [0, -1, phi], [0, 1, -phi], [0, -1, -phi],
+    [1, phi, 0], [-1, phi, 0], [1, -phi, 0], [-1, -phi, 0],
+    [phi, 0, 1], [-phi, 0, 1], [phi, 0, -1], [-phi, 0, -1],
+  ];
+  const verts: [number, number, number][] = raw.map((v) => {
+    const len = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+    return [v[0] / len, v[1] / len, v[2] / len];
+  });
+  const edgeLen = (() => {
+    const dx = verts[0][0] - verts[1][0];
+    const dy = verts[0][1] - verts[1][1];
+    const dz = verts[0][2] - verts[1][2];
+    return Math.sqrt(dx * dx + dy * dy + dz * dz);
+  })();
+  const edges: [number, number][] = [];
+  for (let i = 0; i < verts.length; i++) {
+    for (let j = i + 1; j < verts.length; j++) {
+      const dx = verts[i][0] - verts[j][0];
+      const dy = verts[i][1] - verts[j][1];
+      const dz = verts[i][2] - verts[j][2];
+      if (Math.abs(Math.sqrt(dx * dx + dy * dy + dz * dz) - edgeLen) < 0.01) edges.push([i, j]);
+    }
+  }
+  return { vertices: verts, edges };
+}
+
+const ICOSAHEDRON: ShapeDef = buildIcosahedron();
+
+function buildTorusKnot(p: number, q: number, segments: number, R: number, r: number): ShapeDef {
+  const raw: [number, number, number][] = [];
+  for (let i = 0; i < segments; i++) {
+    const t = (i / segments) * Math.PI * 2;
+    const ring = R + r * Math.cos(q * t);
+    raw.push([
+      ring * Math.cos(p * t),
+      ring * Math.sin(p * t),
+      r * Math.sin(q * t),
+    ]);
+  }
+  let maxLen = 0;
+  for (const v of raw) {
+    const len = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+    if (len > maxLen) maxLen = len;
+  }
+  const vertices: [number, number, number][] = raw.map((v) => [
+    v[0] / maxLen,
+    v[1] / maxLen,
+    v[2] / maxLen,
+  ]);
+  const edges: [number, number][] = [];
+  for (let i = 0; i < segments; i++) edges.push([i, (i + 1) % segments]);
+  return { vertices, edges };
+}
+
+const TREFOIL_KNOT: ShapeDef = buildTorusKnot(2, 3, 120, 1, 0.42);
+
+const SHAPES: ShapeDef[] = [ICOSAHEDRON, STELLA_OCTANGULA, TREFOIL_KNOT];
 
 function randItem<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
@@ -162,6 +221,8 @@ function BackgroundMatrix() {
     let rows = 0;
     let cells: Cell[][] = [];
     let centerShapeRadius = 0;
+
+    const activeShape = SHAPES[Math.floor(Math.random() * SHAPES.length)];
 
     const rotation = {
       x: (Math.random() < 0.5 ? -1 : 1) * (1.15 + Math.random() * 0.5),
@@ -270,7 +331,7 @@ function BackgroundMatrix() {
       const cx = canvas.width / 2;
       const cy = canvas.height / 2;
       const edgeW = Math.max(CELL * 0.5, centerShapeRadius * 0.035);
-      const projectedShape = projectShape(ICOSAHEDRON, time, cx, cy, centerShapeRadius, rotation);
+      const projectedShape = projectShape(activeShape, time, cx, cy, centerShapeRadius, rotation);
       const shapeOuterSq = (projectedShape.boundR + CELL * 2) ** 2;
       const edgeWSq = edgeW * edgeW;
 
