@@ -5,3 +5,19 @@
 body {
   background-color: #0a0a0a;
 }
+
+/*
+ * 본문 글자용 글로우. 배경 노이즈·회전 도형과 구분되는 중립 화이트 톤이라
+ * 어떤 BGM 테마 색과도 겹치지 않고, 리댁션된 검은 블럭이 대비로 드러난다.
+ * 부모에 .text-glow를 걸면 상속되고, .text-glow-none으로 하위에서 끈다.
+ */
+.text-glow {
+  text-shadow:
+    0 0 1px rgba(255, 255, 255, 0.45),
+    0 0 10px rgba(203, 213, 225, 0.35),
+    0 0 26px rgba(148, 163, 184, 0.2);
+}
+
+.text-glow-none {
+  text-shadow: none;
+}

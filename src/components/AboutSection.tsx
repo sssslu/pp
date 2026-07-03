@@ -25,13 +25,14 @@ function RedactedItem({ text }: { text: string }) {
   return (
     <span
       onClick={reveal}
-      className={`inline-block cursor-pointer rounded-sm px-1 transition-colors duration-300 ${
-        isRevealed ? "bg-transparent" : "bg-black hover:bg-gray-900"
+      className={`inline-block cursor-pointer rounded-sm px-1 transition-all duration-300 ${
+        isRevealed ? "bg-transparent" : "bg-black hover:bg-gray-900 ring-1 ring-white/30"
       }`}
     >
+      {/* 가림 상태에선 글로우도 꺼야 글자 윤곽이 새어 나오지 않는다 */}
       <span
         className={`transition-opacity duration-300 ${
-          isRevealed ? "text-gray-300 opacity-100" : "text-transparent opacity-0 select-none"
+          isRevealed ? "text-gray-300 opacity-100" : "text-transparent opacity-0 select-none text-glow-none"
         }`}
       >
         {text}

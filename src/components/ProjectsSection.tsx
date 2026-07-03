@@ -39,7 +39,7 @@ export default function ProjectsSection() {
       />
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 relative z-10">
         {titles.map((title) => (
-          <div key={title} className="bg-gray-900/90 border border-gray-800 rounded p-3 relative overflow-hidden group/card hover:border-cyan-500/50 transition-all duration-300 hover:shadow-[0_0_15px_rgba(6,182,212,0.3)] backdrop-blur-sm">
+          <div key={title} className="text-glow-none bg-gray-900/90 border border-gray-800 rounded p-3 relative overflow-hidden group/card hover:border-cyan-500/50 transition-all duration-300 hover:shadow-[0_0_15px_rgba(6,182,212,0.3)] backdrop-blur-sm">
             <h3 className="font-bold text-base text-white group-hover/card:text-cyan-400 transition-colors">{title}</h3>
             <p
               className="mt-2 text-sm text-gray-300 overflow-hidden text-ellipsis"

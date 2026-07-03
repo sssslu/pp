@@ -1,12 +1,14 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import dynamic from "next/dynamic";
 import HeroSection from "@/components/HeroSection";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { motion, AnimatePresence } from "framer-motion";
-import FloatingBubbles from "@/components/FloatingBubbles";
+import AsciiBackground from "@/components/AsciiBackground";
 import { LanguageProvider, useLanguage } from "@/i18n";
+import { useBgmPlayer, type VolumeState } from "@/hooks/useBgmPlayer";
+import { dispatchRipple } from "@/lib/ascii/events";
 
 const AboutSection    = dynamic(() => import("@/components/AboutSection"),    { ssr: false });
 const GallerySection  = dynamic(() => import("@/components/GallerySection"),  { ssr: false });
@@ -21,49 +23,12 @@ const PAGE_VARIANTS = {
   out:     { opacity: 0, y: -20 },
 } as const;
 
-type VolumeState = "full" | "off";
-
 const VOLUME_BTN: Record<VolumeState, string> = {
   full: "bg-cyan-900/20 border-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.5)] hover:shadow-[0_0_30px_rgba(34,211,238,0.8)]",
   off:  "bg-red-900/20 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.5)] hover:shadow-[0_0_30px_rgba(239,68,68,0.8)]",
 };
 
-interface TrackVisual {
-  bg: string;
-  shape: string;
-  ripple: string;
-}
-
-const DEFAULT_TRACK_VISUAL: TrackVisual = {
-  bg: "#06b6d4",
-  shape: "#ef4444",
-  ripple: "#06b6d4",
-};
-
-const BGM_VISUAL_COLORS: Record<string, TrackVisual> = {
-  bgm1: { bg: "#0e7490", shape: "#67e8f9", ripple: "#fb7185" },
-  bgm2: { bg: "#4c1d95", shape: "#f0abfc", ripple: "#22d3ee" },
-  bgm3: { bg: "#14532d", shape: "#bef264", ripple: "#fb7185" },
-  bgm4: { bg: "#9f1239", shape: "#fda4af", ripple: "#22d3ee" },
-  bgm5: { bg: "#6b7280", shape: "#facc15", ripple: "#facc15" },
-  bgm6: { bg: "#e5e7eb", shape: "#ef4444", ripple: "#ef4444" },
-};
-
-// ── 유틸 ──────────────────────────────────────────────────────────────
-
-function shuffle<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
-function getBgmVisualColor(fileName: string): TrackVisual {
-  const key = fileName.toLowerCase().replace(/\.[^.]+$/, "");
-  return BGM_VISUAL_COLORS[key] ?? DEFAULT_TRACK_VISUAL;
-}
+const LONG_PRESS_MS = 600;
 
 // ── 아이콘 ────────────────────────────────────────────────────────────
 
@@ -102,188 +67,16 @@ function HomeInner() {
   const { t } = useLanguage();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [viewCount, setViewCount]         = useState(-1);
-  const [volumeState, setVolumeState]     = useState<VolumeState>("full");
 
-  const audioRef      = useRef<HTMLAudioElement>(null);
-  const bgmListRef    = useRef<string[]>([]);
-  const bgmIndexRef   = useRef(0);
-  // Web Audio API refs — enables volume control on mobile (iOS)
-  const audioCtxRef   = useRef<AudioContext | null>(null);
-  const gainNodeRef   = useRef<GainNode | null>(null);
-  const gainValueRef  = useRef(0.3); // desired gain before AudioContext exists
-  const volumeStateRef = useRef<VolumeState>("full");
-  const fadeTimersRef = useRef<ReturnType<typeof setInterval>[]>([]);
+  const {
+    audioRef, volumeState, cycleVolume, skipToNextTrack, ensureAudioGraph, onTrackEnded,
+  } = useBgmPlayer();
 
-  // Long-press refs
+  // ── 롱프레스(곡 넘김) / 클릭(볼륨 토글) ───────────────────────────
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isLongPress    = useRef(false);
   const pressCoords    = useRef({ x: 0, y: 0 });
   const cooldownUntil  = useRef(0);
-  const LONG_PRESS_MS  = 600;
-
-  const updateBgmVisualColor = useCallback((fileName: string, transition = false) => {
-    const visual = getBgmVisualColor(fileName);
-    window.dispatchEvent(new CustomEvent("bgm-visual-track", {
-      detail: { ...visual, transition },
-    }));
-    return visual;
-  }, []);
-
-  const setSyncedVolumeState = useCallback((state: VolumeState) => {
-    const nextGain = state === "full" ? 0.3 : 0;
-    const audio = audioRef.current;
-    const gain = gainNodeRef.current;
-
-    volumeStateRef.current = state;
-    gainValueRef.current = nextGain;
-    setVolumeState(state);
-
-    if (gain) gain.gain.value = nextGain;
-    else if (audio) try { audio.volume = nextGain; } catch (_) {}
-
-    if (state === "off") audio?.pause();
-  }, []);
-
-  const clearFadeTimers = useCallback(() => {
-    for (const timer of fadeTimersRef.current) clearInterval(timer);
-    fadeTimersRef.current = [];
-  }, []);
-
-  const normalizePlaybackRate = useCallback(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    audio.defaultPlaybackRate = 1;
-    audio.playbackRate = 1;
-  }, []);
-
-  const getNextTrackIndex = useCallback(() => {
-    const list = bgmListRef.current;
-    const currentIndex = bgmIndexRef.current;
-    if (list.length < 2) return currentIndex;
-    return (currentIndex + 1) % list.length;
-  }, []);
-
-  /** Lazily create (or resume) the Web Audio graph on first user interaction. */
-  const ensureAudioGraph = useCallback(() => {
-    if (audioCtxRef.current) {
-      if (audioCtxRef.current.state === "suspended") audioCtxRef.current.resume();
-      return;
-    }
-    const audio = audioRef.current;
-    if (!audio) return;
-    const ctx = new (window.AudioContext ||
-      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
-    const gain = ctx.createGain();
-    gain.gain.value = volumeStateRef.current === "off" ? 0 : gainValueRef.current;
-    const source = ctx.createMediaElementSource(audio);
-    source.connect(gain);
-    gain.connect(ctx.destination);
-    // Hand volume control entirely to the gain node
-    try { audio.volume = 1; } catch (_) {}
-    audioCtxRef.current = ctx;
-    gainNodeRef.current = gain;
-    ctx.resume();
-    if (volumeStateRef.current === "off") audio.pause();
-  }, []);
-
-  const playTrack = useCallback((index: number) => {
-    const audio = audioRef.current;
-    if (!audio || bgmListRef.current.length === 0) return;
-    const track = bgmListRef.current[index];
-    audio.src = `/bgm/${track}`;
-    normalizePlaybackRate();
-    updateBgmVisualColor(track);
-    // Set element volume only as fallback before Web Audio is initialised
-    try { audio.volume = gainValueRef.current; } catch (_) {}
-    audio.play()
-      .then(() => {
-        if (volumeStateRef.current === "off") audio.pause();
-      })
-      .catch(() => setSyncedVolumeState("off"));
-  }, [normalizePlaybackRate, setSyncedVolumeState, updateBgmVisualColor]);
-
-  const cycleVolume = useCallback(() => {
-    ensureAudioGraph();
-    if (volumeState === "full") {
-      setSyncedVolumeState("off");
-    } else {
-      setSyncedVolumeState("full");
-      normalizePlaybackRate();
-      audioRef.current?.play().catch(() => {});
-    }
-  }, [ensureAudioGraph, normalizePlaybackRate, setSyncedVolumeState, volumeState]);
-
-  /** 페이지 로드 때 만들어진 랜덤 순서를 따라 다음 곡으로 전환 */
-  const skipToNextTrack = useCallback((originX: number, originY: number) => {
-    const list = bgmListRef.current;
-    const next = getNextTrackIndex();
-    if (!list.length || list[next] === list[bgmIndexRef.current]) return;
-    const nextVisual = updateBgmVisualColor(list[next], true);
-
-    // 다음 곡 색의 진한 리플 발사
-    window.dispatchEvent(new CustomEvent("ascii-ripple", {
-      detail: { x: originX, y: originY, color: nextVisual.ripple },
-    }));
-
-    // 볼륨 페이드아웃 → 곡 교체 → 페이드인
-    const gain = gainNodeRef.current;
-    const audio = audioRef.current;
-    if (!audio) return;
-    clearFadeTimers();
-
-    if (volumeStateRef.current === "off") {
-      bgmIndexRef.current = next;
-      audio.src = `/bgm/${list[next]}`;
-      normalizePlaybackRate();
-      audio.pause();
-      return;
-    }
-
-    const savedGain = gainValueRef.current;
-    const FADE_MS   = 800;
-    const steps     = 20;
-    let step        = 0;
-
-    // fade out
-    const fadeOut = setInterval(() => {
-      step++;
-      const v = savedGain * (1 - step / steps);
-      if (gain) gain.gain.value = v;
-      else try { audio.volume = v; } catch (_) {}
-      if (step >= steps) {
-        clearInterval(fadeOut);
-        // swap track
-        bgmIndexRef.current = next;
-        audio.src = `/bgm/${list[next]}`;
-        normalizePlaybackRate();
-        updateBgmVisualColor(list[next], true);
-        audio.play().catch(() => setSyncedVolumeState("off"));
-        // fade in
-        let stepIn = 0;
-        const fadeIn = setInterval(() => {
-          stepIn++;
-          const v2 = savedGain * (stepIn / steps);
-          if (gain) gain.gain.value = v2;
-          else try { audio.volume = v2; } catch (_) {}
-          if (stepIn >= steps) {
-            clearInterval(fadeIn);
-            if (gain) gain.gain.value = savedGain;
-            else try { audio.volume = savedGain; } catch (_) {}
-          }
-        }, FADE_MS / steps);
-        fadeTimersRef.current.push(fadeIn);
-      }
-    }, FADE_MS / steps);
-    fadeTimersRef.current.push(fadeOut);
-  }, [clearFadeTimers, getNextTrackIndex, normalizePlaybackRate, setSyncedVolumeState, updateBgmVisualColor]);
-
-  useEffect(() => {
-    return () => {
-      clearFadeTimers();
-    };
-  }, [clearFadeTimers]);
-
-  // ── Long-press handlers ───────────────────────────────────────────
 
   const handlePressStart = useCallback((clientX: number, clientY: number) => {
     isLongPress.current = false;
@@ -310,24 +103,11 @@ function HomeInner() {
       return; // 롱프레스였거나 쿨다운 중이면 무시
     }
     // 얇은 리플 발사
-    window.dispatchEvent(new CustomEvent("ascii-ripple", {
-      detail: { x: pressCoords.current.x, y: pressCoords.current.y, thin: true },
-    }));
+    dispatchRipple({ x: pressCoords.current.x, y: pressCoords.current.y, thin: true });
     cycleVolume();
   }, [cycleVolume]);
 
-  useEffect(() => {
-    fetch("/api/bgm")
-      .then((r) => r.json())
-      .then(({ files }: { files: string[] }) => {
-        if (!files?.length) return;
-        bgmListRef.current  = shuffle(files);
-        bgmIndexRef.current = 0;
-        playTrack(0);
-      })
-      .catch(() => {});
-  }, [playTrack]);
-
+  // ── 조회수 ────────────────────────────────────────────────────────
   useEffect(() => {
     const controller = new AbortController();
     fetch("https://slusphere.fly.dev/viewcount/1", { signal: controller.signal })
@@ -344,9 +124,7 @@ function HomeInner() {
     const fireMiniRipple = (x: number, y: number) => {
       if (isLongPress.current || Date.now() < cooldownUntil.current) return;
       ensureAudioGraph();
-      window.dispatchEvent(new CustomEvent("ascii-ripple", {
-        detail: { x, y, band: 15 },
-      }));
+      dispatchRipple({ x, y, band: 15 });
     };
     const onClick = (e: MouseEvent) => fireMiniRipple(e.clientX, e.clientY);
     const onTouch = (e: TouchEvent) => {
@@ -377,17 +155,9 @@ function HomeInner() {
       transition={{ duration: 0.8 }}
       className="min-h-screen text-white"
     >
-      <FloatingBubbles />
+      <AsciiBackground />
 
-      <audio
-        ref={audioRef}
-        onEnded={() => {
-          const list = bgmListRef.current;
-          if (!list.length) return;
-          bgmIndexRef.current = getNextTrackIndex();
-          playTrack(bgmIndexRef.current);
-        }}
-      />
+      <audio ref={audioRef} onEnded={onTrackEnded} />
 
       <LanguageSwitcher />
 
@@ -409,7 +179,7 @@ function HomeInner() {
         {volumeState === "full" ? <MusicOnIcon /> : <MusicOffIcon />}
       </button>
 
-      <main>
+      <main className="text-glow">
         <AnimatePresence initial={false}>
           {!isGalleryTab && (
             <motion.div
@@ -466,4 +236,3 @@ function HomeInner() {
     </motion.div>
   );
 }
-
