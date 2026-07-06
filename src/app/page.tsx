@@ -4,9 +4,10 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import dynamic from "next/dynamic";
 import HeroSection from "@/components/HeroSection";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
+import BottomDock from "@/components/BottomDock";
 import { motion, AnimatePresence } from "framer-motion";
 import AsciiBackground from "@/components/AsciiBackground";
-import { LanguageProvider, useLanguage } from "@/i18n";
+import { LanguageProvider } from "@/i18n";
 import { useBgmPlayer, type VolumeState } from "@/hooks/useBgmPlayer";
 import { dispatchRipple } from "@/lib/ascii/events";
 
@@ -17,18 +18,18 @@ const PerkSection     = dynamic(() => import("@/components/PerkSection"),     { 
 const ProjectsSection = dynamic(() => import("@/components/ProjectsSection"), { ssr: false });
 const ContactFooter   = dynamic(() => import("@/components/ContactFooter"),   { ssr: false });
 
-const PAGE_VARIANTS = {
-  initial: { opacity: 0, y: 20 },
-  in:      { opacity: 1, y: 0 },
-  out:     { opacity: 0, y: -20 },
-} as const;
-
 const VOLUME_BTN: Record<VolumeState, string> = {
   full: "bg-cyan-900/20 border-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.5)] hover:shadow-[0_0_30px_rgba(34,211,238,0.8)]",
   off:  "bg-red-900/20 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.5)] hover:shadow-[0_0_30px_rgba(239,68,68,0.8)]",
 };
 
-const LONG_PRESS_MS = 600;
+const LONG_PRESS_MS = 600; // globals.css의 .ring-press 시간과 동기
+
+// 롱프레스(곡 넘김) 발견 유도 힌트: 버튼이 스스로 꾹 눌리는 시늉을 한다
+const HINT_FIRST_MS    = 9000;  // 첫 힌트까지
+const HINT_INTERVAL_MS = 26000; // 이후 반복 간격
+const HINT_DURATION_MS = 1500;
+const HINT_STORAGE_KEY = "bgm-longpress-discovered";
 
 // ── 아이콘 ────────────────────────────────────────────────────────────
 
@@ -64,9 +65,10 @@ export default function Home() {
 }
 
 function HomeInner() {
-  const { t } = useLanguage();
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [viewCount, setViewCount]         = useState(-1);
+  const [pressing, setPressing]           = useState(false);
+  const [hintOn, setHintOn]               = useState(false);
 
   const {
     audioRef, volumeState, cycleVolume, skipToNextTrack, ensureAudioGraph, onTrackEnded,
@@ -77,19 +79,32 @@ function HomeInner() {
   const isLongPress    = useRef(false);
   const pressCoords    = useRef({ x: 0, y: 0 });
   const cooldownUntil  = useRef(0);
+  const discovered     = useRef(false);
+
+  useEffect(() => {
+    try {
+      discovered.current = localStorage.getItem(HINT_STORAGE_KEY) === "1";
+    } catch {}
+  }, []);
 
   const handlePressStart = useCallback((clientX: number, clientY: number) => {
     isLongPress.current = false;
     pressCoords.current = { x: clientX, y: clientY };
+    setPressing(true);
+    setHintOn(false);
     longPressTimer.current = setTimeout(() => {
       isLongPress.current = true;
       cooldownUntil.current = Date.now() + 200;
+      // 사용자가 롱프레스를 발견했으니 힌트는 그만 보여준다
+      discovered.current = true;
+      try { localStorage.setItem(HINT_STORAGE_KEY, "1"); } catch {}
       ensureAudioGraph();
       skipToNextTrack(clientX, clientY);
     }, LONG_PRESS_MS);
   }, [ensureAudioGraph, skipToNextTrack]);
 
   const handlePressEnd = useCallback(() => {
+    setPressing(false);
     if (isLongPress.current) cooldownUntil.current = Date.now() + 250;
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
@@ -106,6 +121,30 @@ function HomeInner() {
     dispatchRipple({ x: pressCoords.current.x, y: pressCoords.current.y, thin: true });
     cycleVolume();
   }, [cycleVolume]);
+
+  // ── 롱프레스 유도 힌트: 가끔 버튼이 혼자 꾹 눌리며 링이 차오른다 ──
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    let showTimer: ReturnType<typeof setTimeout> | null = null;
+    let hideTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const schedule = (delay: number) => {
+      showTimer = setTimeout(() => {
+        if (!discovered.current && !document.hidden) {
+          setHintOn(true);
+          hideTimer = setTimeout(() => setHintOn(false), HINT_DURATION_MS);
+        }
+        schedule(HINT_INTERVAL_MS);
+      }, delay);
+    };
+    schedule(HINT_FIRST_MS);
+
+    return () => {
+      if (showTimer) clearTimeout(showTimer);
+      if (hideTimer) clearTimeout(hideTimer);
+    };
+  }, []);
 
   // ── 조회수 ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -138,7 +177,43 @@ function HomeInner() {
     };
   }, [ensureAudioGraph]);
 
+  // ── 섹션 선택 / 닫기 ─────────────────────────────────────────────
+  const handleSelect = useCallback((index: number) => {
+    setSelectedIndex((prev) => (prev === index ? null : index));
+  }, []);
+
+  // Escape(키보드)로 닫으면 포커스를 원래 탭 버튼으로 돌려준다 (다이얼로그 관례)
+  const closedViaKeyboard = useRef(false);
+  const prevSelectedIndex = useRef<number | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        closedViaKeyboard.current = true;
+        setSelectedIndex(null);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  useEffect(() => {
+    if (selectedIndex === null && prevSelectedIndex.current !== null && closedViaKeyboard.current) {
+      document
+        .querySelector<HTMLButtonElement>(`[data-dock-tab="${prevSelectedIndex.current}"]`)
+        ?.focus({ preventScroll: true });
+    }
+    closedViaKeyboard.current = false;
+    prevSelectedIndex.current = selectedIndex;
+  }, [selectedIndex]);
+
+  const panelOpen    = selectedIndex !== null;
   const isGalleryTab = selectedIndex === 4;
+
+  // 패널이 열리면 스크롤 컨테이너에 포커스를 줘서 키보드(방향키/PageDown)로도 스크롤되게 한다
+  const focusPanel = useCallback((el: HTMLElement | null) => {
+    el?.focus({ preventScroll: true });
+  }, []);
 
   const pages = [
     <AboutSection    key="about"    />,
@@ -153,7 +228,7 @@ function HomeInner() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.8 }}
-      className="min-h-screen text-white"
+      className="relative h-screen-dvh overflow-hidden text-white"
     >
       <AsciiBackground />
 
@@ -161,9 +236,12 @@ function HomeInner() {
 
       <LanguageSwitcher />
 
-      <button
+      {/* 볼륨 버튼: 클릭=음소거 토글, 롱프레스=다음 곡 (링이 차오르면 발동) */}
+      <motion.button
         onClick={handleClick}
-        onMouseDown={(e) => handlePressStart(e.clientX, e.clientY)}
+        onMouseDown={(e) => {
+          if (e.button === 0) handlePressStart(e.clientX, e.clientY);
+        }}
         onMouseUp={handlePressEnd}
         onMouseLeave={handlePressEnd}
         onTouchStart={(e) => {
@@ -173,66 +251,116 @@ function HomeInner() {
         onTouchEnd={handlePressEnd}
         onTouchCancel={handlePressEnd}
         onContextMenu={(e) => e.preventDefault()}
-        aria-label="Cycle volume"
-        className={`fixed bottom-8 right-8 z-50 flex items-center justify-center w-14 h-14 rounded-xl border-2 transition-all duration-300 backdrop-blur-md select-none ${VOLUME_BTN[volumeState]}`}
+        aria-label="Cycle volume (hold to skip track)"
+        animate={
+          pressing ? { scale: 0.88 }
+          : hintOn ? { scale: [1, 0.88, 0.88, 1] }
+          : { scale: 1 }
+        }
+        transition={
+          hintOn && !pressing
+            ? { duration: HINT_DURATION_MS / 1000, times: [0, 0.22, 0.78, 1] }
+            : { duration: 0.15 }
+        }
+        className={`fixed right-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] md:right-8 md:bottom-8 z-50 flex items-center justify-center w-14 h-14 rounded-xl border-2 transition-[background-color,border-color,box-shadow] duration-300 backdrop-blur-md select-none touch-none ${VOLUME_BTN[volumeState]}`}
       >
         {volumeState === "full" ? <MusicOnIcon /> : <MusicOffIcon />}
-      </button>
+        {(pressing || hintOn) && (
+          <svg
+            key={pressing ? "press" : "hint"}
+            viewBox="0 0 56 56"
+            className="absolute inset-0 w-full h-full pointer-events-none"
+          >
+            <rect
+              x="1.5" y="1.5" width="53" height="53" rx="11"
+              fill="none"
+              stroke="rgba(255,255,255,0.9)"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              pathLength={100}
+              strokeDasharray="100"
+              strokeDashoffset="100"
+              className={pressing ? "ring-press" : "ring-hint"}
+            />
+          </svg>
+        )}
+      </motion.button>
 
-      <main className="text-glow">
+      <main className="text-glow h-full">
+        {/* 상단 프로필: 패널이 열리면 비켜준다 */}
         <AnimatePresence initial={false}>
-          {!isGalleryTab && (
+          {!panelOpen && (
             <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.5 }}
-              className="overflow-hidden"
+              key="hero"
+              initial={{ opacity: 0, y: -16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -16 }}
+              transition={{ duration: 0.4 }}
             >
               <HeroSection />
             </motion.div>
           )}
         </AnimatePresence>
 
-        <div data-ascii-mask className="sticky top-0 z-20 bg-transparent h-12 flex justify-evenly items-center">
-          {t.tabs.map((label, index) => {
-            const isSelected = selectedIndex === index;
-            return (
-              <button key={index} onClick={() => setSelectedIndex(index)} className="text-center">
-                <span className={isSelected ? "text-white font-bold" : "text-gray-400 font-normal"}>
-                  {label}
-                </span>
-                {isSelected && <div className="mt-1 h-[2px] w-5 bg-white mx-auto" />}
-              </button>
-            );
-          })}
-        </div>
-
+        {/* 섹션 패널: 탭 선택 시에만 화면을 덮는 스크롤 영역 */}
         <AnimatePresence mode="wait">
-          <motion.div
-            key={selectedIndex}
-            variants={PAGE_VARIANTS}
-            initial="initial"
-            animate="in"
-            exit="out"
-            transition={{ duration: 0.5, ease: "easeInOut" }}
-            className="w-full relative z-10"
-            style={isGalleryTab ? undefined : {
-              maskImage:       "linear-gradient(to bottom, transparent 0px, black 30px)",
-              WebkitMaskImage: "linear-gradient(to bottom, transparent 0px, black 30px)",
-            }}
-          >
-            {pages[selectedIndex]}
-          </motion.div>
+          {panelOpen && (
+            <motion.section
+              key={selectedIndex}
+              ref={focusPanel}
+              tabIndex={-1}
+              initial={{ opacity: 0, y: 28 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 28 }}
+              transition={{ duration: 0.35, ease: "easeInOut" }}
+              className="fixed inset-0 z-30 overflow-y-auto overscroll-contain bg-[#0a0a0a]/45 focus:outline-none"
+              style={isGalleryTab ? undefined : {
+                maskImage:       "linear-gradient(to bottom, transparent 0px, black 40px)",
+                WebkitMaskImage: "linear-gradient(to bottom, transparent 0px, black 40px)",
+              }}
+            >
+              <div className="min-h-full pt-16 pb-[calc(7rem+env(safe-area-inset-bottom))]">
+                {pages[selectedIndex]}
+                {!isGalleryTab && <ContactFooter />}
+                {!isGalleryTab && viewCount !== -1 && (
+                  <div className="w-full py-4 text-center">
+                    <p className="text-gray-400 text-sm">Total {viewCount} views</p>
+                  </div>
+                )}
+              </div>
+            </motion.section>
+          )}
         </AnimatePresence>
-
-        {!isGalleryTab && <ContactFooter />}
-        {!isGalleryTab && viewCount !== -1 && (
-          <div className="w-full bg-transparent py-4 text-center relative z-10">
-            <p className="text-gray-400 text-sm">Total {viewCount} views</p>
-          </div>
-        )}
       </main>
+
+      {/* 패널 닫기 버튼 */}
+      <AnimatePresence>
+        {panelOpen && (
+          <motion.button
+            key="close"
+            onClick={() => setSelectedIndex(null)}
+            aria-label="Close section"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            transition={{ duration: 0.2 }}
+            className="fixed top-4 left-4 z-40 flex items-center justify-center w-10 h-10 rounded-2xl border border-gray-700/60 bg-gray-950/70 backdrop-blur-xl text-gray-300 hover:text-white transition-colors"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      <BottomDock selectedIndex={selectedIndex} onSelect={handleSelect} />
+
+      {/* 대기 화면 한 켠의 조회수 (좌상단 — 하단 도크와 겹치지 않는다) */}
+      {!panelOpen && viewCount !== -1 && (
+        <div className="fixed top-5 left-4 z-10 text-[11px] text-gray-500/80 select-none pointer-events-none">
+          Total {viewCount} views
+        </div>
+      )}
     </motion.div>
   );
 }

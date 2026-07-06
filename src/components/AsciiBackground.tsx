@@ -12,7 +12,7 @@ import {
   type ShapeId,
 } from "@/lib/ascii/shapes";
 import { onVisualTheme, onRipple } from "@/lib/ascii/events";
-import { DEFAULT_THEME } from "@/lib/bgmThemes";
+import { DEFAULT_TRACK } from "@/lib/bgmTracks";
 
 /**
  * 아스키 글자를 픽셀 삼아 배경 노이즈 + 중앙 3D 도형 + 클릭 리플을 그리는 캔버스.
@@ -101,9 +101,9 @@ export default function AsciiBackground() {
 
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
-    let bgColor = DEFAULT_THEME.bg;
-    let shapeColor = DEFAULT_THEME.shapeColor;
-    let rippleColor = DEFAULT_THEME.rippleColor;
+    let bgColor = DEFAULT_TRACK.bg;
+    let shapeColor = DEFAULT_TRACK.shapeColor;
+    let rippleColor = DEFAULT_TRACK.rippleColor;
     let prevBgColor: string | null = null;
     let fadeStart = 0;
     let viewW = 0;

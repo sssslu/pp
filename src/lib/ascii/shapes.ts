@@ -4,7 +4,7 @@
  * 새 도형 추가 방법:
  *  1. build 함수를 만들어 ShapeDef를 반환한다 (정점은 대략 단위 구 안에 정규화).
  *  2. SHAPE_REGISTRY에 id와 함께 등록한다.
- *  3. 특정 곡에 고정하려면 bgmThemes.ts에서 shapeId로 지정한다.
+ *  3. 특정 곡에 고정하려면 bgmTracks.ts에서 shapeId로 지정한다.
  */
 
 export type Vec3 = [number, number, number];
@@ -169,7 +169,7 @@ export const SHAPE_REGISTRY: Record<ShapeId, ShapeDef> = {
   hospitalCross: buildHospitalCross(),
 };
 
-/** "random" 테마에서 뽑는 풀 — 모든 도형이 후보다 (특정 곡 고정은 bgmThemes.ts에서만 한다) */
+/** "random" 테마에서 뽑는 풀 — 모든 도형이 후보다 (특정 곡 고정은 bgmTracks.ts에서만 한다) */
 export const RANDOM_SHAPE_POOL: ShapeId[] = Object.keys(SHAPE_REGISTRY) as ShapeId[];
 
 export function randomShapeId(exclude?: ShapeId): ShapeId {
@@ -219,6 +219,9 @@ export interface ProjectedShape {
   accent: Segment[];
 }
 
+/** 전체 회전 속도 배율 (1 = 기존 속도) */
+const SPIN_SPEED = 1.18;
+
 /** 도형을 회전시켜 화면 좌표의 선분 목록으로 투영한다. */
 export function projectShape(
   def: ShapeDef,
@@ -228,14 +231,15 @@ export function projectShape(
   radius: number,
   rotation: RotationConfig,
 ): ProjectedShape {
+  const t = time * SPIN_SPEED;
   // upright 도형은 세워둔 채 수직축으로만 돌리고 살짝 끄덕이게 한다
-  const rx = def.upright ? 0.2 * Math.sin(time * 0.4) : time * rotation.x + rotation.offset;
+  const rx = def.upright ? 0.2 * Math.sin(t * 0.4) : t * rotation.x + rotation.offset;
   const ry = def.upright
-    ? time * rotation.y * 0.45 + rotation.offset
-    : time * rotation.y + rotation.offset * 0.7;
+    ? t * rotation.y * 0.45 + rotation.offset
+    : t * rotation.y + rotation.offset * 0.7;
   const rz = def.upright
-    ? (def.tiltZ ?? 0.08 * Math.sin(time * 0.3))
-    : time * rotation.z + rotation.offset * 1.3;
+    ? (def.tiltZ ?? 0.08 * Math.sin(t * 0.3))
+    : t * rotation.z + rotation.offset * 1.3;
 
   const pts: [number, number][] = [];
   const depths: number[] = [];
