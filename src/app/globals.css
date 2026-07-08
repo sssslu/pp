@@ -44,19 +44,73 @@ body {
   animation: ring-fill 1.1s ease-in-out forwards;
 }
 
-/* 접힌 도크 손잡이가 은은하게 숨쉬며 존재를 알린다 */
-@keyframes handle-breathe {
-  0%, 100% { opacity: 0.5; }
-  50%      { opacity: 1; }
+/*
+ * 하단 네비 도크: 항상 떠 있는 네온 사이버펑크 바.
+ * 테두리·광원이 천천히 숨쉬다 네온 특유의 짧은 깜빡임을 섞는다(점멸).
+ * 정적 기본값을 클래스에 두어, prefers-reduced-motion에서도 은은한 광원은 남는다.
+ */
+.dock-neon {
+  border: 1px solid rgba(34, 211, 238, 0.3);
+  box-shadow:
+    0 0 12px rgba(6, 182, 212, 0.22),
+    0 0 34px rgba(6, 182, 212, 0.10),
+    inset 0 0 14px rgba(6, 182, 212, 0.06);
+  animation: dock-neon 4.8s ease-in-out infinite;
 }
-.dock-handle-breathe {
-  animation: handle-breathe 2.6s ease-in-out infinite;
+@keyframes dock-neon {
+  0%, 100% {
+    border-color: rgba(34, 211, 238, 0.28);
+    box-shadow:
+      0 0 12px rgba(6, 182, 212, 0.20),
+      0 0 34px rgba(6, 182, 212, 0.10),
+      inset 0 0 14px rgba(6, 182, 212, 0.06);
+  }
+  46% {
+    border-color: rgba(34, 211, 238, 0.65);
+    box-shadow:
+      0 0 18px rgba(6, 182, 212, 0.45),
+      0 0 46px rgba(6, 182, 212, 0.22),
+      inset 0 0 18px rgba(6, 182, 212, 0.12);
+  }
+  /* 네온 특유의 짧은 깜빡임 */
+  49% {
+    border-color: rgba(34, 211, 238, 0.22);
+    box-shadow: 0 0 6px rgba(6, 182, 212, 0.12);
+  }
+  52% {
+    border-color: rgba(34, 211, 238, 0.6);
+    box-shadow:
+      0 0 18px rgba(6, 182, 212, 0.42),
+      0 0 46px rgba(6, 182, 212, 0.20),
+      inset 0 0 18px rgba(6, 182, 212, 0.12);
+  }
+}
+
+/* 상단 테두리를 주기적으로 훑고 지나가는 스캔라인 */
+.dock-scanline {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 45%;
+  height: 1.5px;
+  background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.95), transparent);
+  animation: dock-scan 5.2s ease-in-out infinite;
+}
+@keyframes dock-scan {
+  0%   { transform: translateX(-20%); opacity: 0; }
+  12%  { opacity: 1; }
+  50%  { opacity: 0.9; }
+  88%  { opacity: 1; }
+  100% { transform: translateX(240%); opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .ring-press,
   .ring-hint,
-  .dock-handle-breathe {
+  .dock-neon {
     animation: none;
+  }
+  .dock-scanline {
+    display: none;
   }
 }
