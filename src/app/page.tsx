@@ -25,10 +25,13 @@ const VOLUME_BTN: Record<VolumeState, string> = {
 
 const LONG_PRESS_MS = 600; // globals.css의 .ring-press 시간과 동기
 
-// 롱프레스(곡 넘김) 발견 유도 힌트: 버튼이 스스로 꾹 눌리는 시늉을 한다
-const HINT_FIRST_MS    = 9000;  // 첫 힌트까지
-const HINT_INTERVAL_MS = 26000; // 이후 반복 간격
-const HINT_DURATION_MS = 1500;
+// 롱프레스(곡 넘김) 발견 유도 힌트: 버튼이 은은하게 glow 하며 위에 "LONG PRESS!!!"를 띄운다.
+// 한 곡을 HINT_MIN_PLAY_S 이상 들었을 때만 뜨고, 한 번이라도 롱프레스하면 이후로 안 뜬다.
+const HINT_FIRST_MS    = 4000;  // 첫 확인까지 (실질 타이밍은 재생 시간 게이트가 결정)
+const HINT_INTERVAL_MS = 26000; // 힌트 노출 후 다음 노출까지
+const HINT_RETRY_MS    = 3000;  // 재생 시간 조건 미충족 시 재확인 간격
+const HINT_DURATION_MS = 2200;  // glow + 텍스트 노출 시간
+const HINT_MIN_PLAY_S  = 10;    // 한 곡을 이만큼(초) 들어야 힌트 노출
 const HINT_STORAGE_KEY = "bgm-longpress-discovered";
 
 // ── 아이콘 ────────────────────────────────────────────────────────────
@@ -122,29 +125,34 @@ function HomeInner() {
     cycleVolume();
   }, [cycleVolume]);
 
-  // ── 롱프레스 유도 힌트: 가끔 버튼이 혼자 꾹 눌리며 링이 차오른다 ──
+  // ── 롱프레스 유도 힌트 ──────────────────────────────────────────────
+  // 한 곡을 10초 이상 들었을 때만, 버튼이 은은하게 glow 하며 위에 "LONG PRESS!!!"를 띄운다.
+  // 아직 10초를 못 들었으면 짧게 재확인하고, 한 번이라도 롱프레스했다면 더는 뜨지 않는다.
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
-    let showTimer: ReturnType<typeof setTimeout> | null = null;
+    let loopTimer: ReturnType<typeof setTimeout>;
     let hideTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const schedule = (delay: number) => {
-      showTimer = setTimeout(() => {
-        if (!discovered.current && !document.hidden) {
-          setHintOn(true);
-          hideTimer = setTimeout(() => setHintOn(false), HINT_DURATION_MS);
-        }
-        schedule(HINT_INTERVAL_MS);
-      }, delay);
+    const tick = (): number => {
+      if (discovered.current || document.hidden) return HINT_INTERVAL_MS;
+      // 현재 곡을 충분히 듣지 않았으면 힌트를 미루고 곧 다시 확인한다
+      if ((audioRef.current?.currentTime ?? 0) < HINT_MIN_PLAY_S) return HINT_RETRY_MS;
+      setHintOn(true);
+      hideTimer = setTimeout(() => setHintOn(false), HINT_DURATION_MS);
+      return HINT_INTERVAL_MS;
     };
-    schedule(HINT_FIRST_MS);
+
+    const run = () => {
+      loopTimer = setTimeout(run, tick());
+    };
+    loopTimer = setTimeout(run, HINT_FIRST_MS);
 
     return () => {
-      if (showTimer) clearTimeout(showTimer);
+      clearTimeout(loopTimer);
       if (hideTimer) clearTimeout(hideTimer);
     };
-  }, []);
+  }, [audioRef]);
 
   // ── 조회수 ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -252,25 +260,15 @@ function HomeInner() {
         onTouchCancel={handlePressEnd}
         onContextMenu={(e) => e.preventDefault()}
         aria-label="Cycle volume (hold to skip track)"
-        animate={
-          pressing ? { scale: 0.88 }
-          : hintOn ? { scale: [1, 0.88, 0.88, 1] }
-          : { scale: 1 }
-        }
-        transition={
-          hintOn && !pressing
-            ? { duration: HINT_DURATION_MS / 1000, times: [0, 0.22, 0.78, 1] }
-            : { duration: 0.15 }
-        }
+        animate={pressing ? { scale: 0.88 } : { scale: 1 }}
+        transition={{ duration: 0.15 }}
         className={`fixed right-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] md:right-8 md:bottom-8 z-50 flex items-center justify-center w-14 h-14 rounded-xl border-2 transition-[background-color,border-color,box-shadow] duration-300 backdrop-blur-md select-none touch-none ${VOLUME_BTN[volumeState]}`}
       >
         {volumeState === "full" ? <MusicOnIcon /> : <MusicOffIcon />}
-        {(pressing || hintOn) && (
-          <svg
-            key={pressing ? "press" : "hint"}
-            viewBox="0 0 56 56"
-            className="absolute inset-0 w-full h-full pointer-events-none"
-          >
+
+        {/* 롱프레스 진행 링: 실제로 꾹 누르는 동안만 차오른다 */}
+        {pressing && (
+          <svg viewBox="0 0 56 56" className="absolute inset-0 w-full h-full pointer-events-none">
             <rect
               x="1.5" y="1.5" width="53" height="53" rx="11"
               fill="none"
@@ -280,9 +278,32 @@ function HomeInner() {
               pathLength={100}
               strokeDasharray="100"
               strokeDashoffset="100"
-              className={pressing ? "ring-press" : "ring-hint"}
+              className="ring-press"
             />
           </svg>
+        )}
+
+        {/* 발견 유도 힌트: 은은한 노란 glow + 위에 "LONG PRESS!!!" 텍스트 */}
+        {hintOn && (
+          <>
+            <motion.span
+              aria-hidden
+              className="absolute inset-0 rounded-xl pointer-events-none"
+              style={{ boxShadow: "0 0 16px 3px rgba(250,204,21,0.5), inset 0 0 10px rgba(250,204,21,0.25)" }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: [0, 1, 1, 0] }}
+              transition={{ duration: HINT_DURATION_MS / 1000, times: [0, 0.25, 0.7, 1], ease: "easeInOut" }}
+            />
+            <motion.span
+              aria-hidden
+              className="absolute bottom-full right-0 mb-2 whitespace-nowrap text-[11px] font-bold tracking-[0.2em] text-yellow-300 drop-shadow-[0_0_6px_rgba(250,204,21,0.85)] pointer-events-none select-none"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: [0, 1, 1, 0] }}
+              transition={{ duration: HINT_DURATION_MS / 1000, times: [0, 0.25, 0.7, 1], ease: "easeInOut" }}
+            >
+              LONG PRESS!!!
+            </motion.span>
+          </>
         )}
       </motion.button>
 

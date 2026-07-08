@@ -57,8 +57,8 @@ const galleryItems = [
     { url: "https://i.imgur.com/UUObjlX.png", description: "작품 - 죄를 사하다 2", category: "아트웍" },
 
     // Travel
-    { url: "https://i.imgur.com/MrMSVCz.png", description: "여행 - 도쿄 외 수많은 나라", category: "여행" },
-    { url: "https://i.imgur.com/7vFebfV.jpeg", description: "프리다이빙 여행 - 모리셔스 외 수많은 나라", category: "여행" },
+    { url: "https://i.imgur.com/MrMSVCz.png", description: "여행 - 수많은 나라", category: "여행" },
+    { url: "https://i.imgur.com/7vFebfV.jpeg", description: "프리다이빙 투어 - 수많은 나라", category: "여행" },
     
 
     // Certificates
@@ -70,7 +70,7 @@ const galleryItems = [
 
     // Meta
     { url: "https://i.imgur.com/6koByeg.png", description: "해당 포트폴리오 페이지는 FLUTTER 웹앱 입니다! 20260301 수정 - 이제 플러터 아닙니다", category: "기타" },
-    { url: "https://i.imgur.com/iw7lXVi.png", description: "처음부터 끝까지 레퍼런스없이 직접 제작하였습니다! 20260301 수정 - 이제 AI 가 주도합니다...", category: "기타" },
+    { url: "https://i.imgur.com/iw7lXVi.png", description: "처음부터 끝까지 레퍼런스없이 직접 제작하였습니다! 20260301 수정 - 이제 AI 가...알아서...", category: "기타" },
 ];
 
 const categories = [...new Set(galleryItems.map((item) => item.category))];

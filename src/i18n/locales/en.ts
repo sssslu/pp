@@ -41,7 +41,7 @@ export const en: Translations = {
       "nbidiaGLM":
         "A chatbot harness powered by an LLM served through NVIDIA.",
       "TSLAhunter":
-        "A CLI (terminal) program that analyzes market conditions per ticker and gives buy / sell recommendations.",
+        "A CLI program that analyzes market conditions per ticker and gives buy / sell recommendations.",
       "CryptoHunter":
         "A system integrating real-time data collection, GPT-based strategy judgment, and automated order execution — with logging and risk management. Bottom line: didn't get rich.",
       "Andong Jang Clan Namhae Genealogy":

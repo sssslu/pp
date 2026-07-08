@@ -29,7 +29,7 @@ body {
 }
 
 /*
- * 볼륨 버튼 롱프레스 진행/힌트 링.
+ * 볼륨 버튼 롱프레스 진행 링.
  * rect에 pathLength=100을 줬으므로 dashoffset 100→0이 한 바퀴다.
  * .ring-press의 0.6s는 page.tsx의 LONG_PRESS_MS와 맞춰져 있다.
  */
@@ -39,9 +39,6 @@ body {
 }
 .ring-press {
   animation: ring-fill 0.6s linear forwards;
-}
-.ring-hint {
-  animation: ring-fill 1.1s ease-in-out forwards;
 }
 
 /*
@@ -86,31 +83,9 @@ body {
   }
 }
 
-/* 상단 테두리를 주기적으로 훑고 지나가는 스캔라인 */
-.dock-scanline {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 45%;
-  height: 1.5px;
-  background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.95), transparent);
-  animation: dock-scan 5.2s ease-in-out infinite;
-}
-@keyframes dock-scan {
-  0%   { transform: translateX(-20%); opacity: 0; }
-  12%  { opacity: 1; }
-  50%  { opacity: 0.9; }
-  88%  { opacity: 1; }
-  100% { transform: translateX(240%); opacity: 0; }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .ring-press,
-  .ring-hint,
   .dock-neon {
     animation: none;
-  }
-  .dock-scanline {
-    display: none;
   }
 }

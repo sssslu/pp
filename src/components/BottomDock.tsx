@@ -34,11 +34,6 @@ export default function BottomDock({ selectedIndex, onSelect }: BottomDockProps)
         className="pointer-events-auto"
       >
         <div className="dock-neon relative flex items-center gap-0.5 rounded-2xl bg-gray-950/70 px-1.5 py-1.5 backdrop-blur-xl">
-          {/* 상단 테두리를 주기적으로 훑는 스캔라인 (라운드 클립 레이어) */}
-          <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
-            <span className="dock-scanline" aria-hidden />
-          </div>
-
           {t.tabs.map((label, index) => {
             const isSelected = selectedIndex === index;
             return (
