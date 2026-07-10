@@ -53,7 +53,7 @@ interface Ripple {
   color: string;
 }
 
-interface Star { x: number; y: number; r: number; a: number; warm: boolean; ph: number; }
+interface Star { x: number; y: number; a: number; ph: number; }
 
 function randItem<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
@@ -92,155 +92,112 @@ function buildTile(color: string, dpr: number, kind: "noise" | "glyph"): HTMLCan
   return tile;
 }
 
-/**
- * 인터스텔라 Gargantua 블랙홀을 레이어드 가법 그라디언트로 그린다. 모든 치수는 R(그림자 반경) 단위.
- * 와이어프레임이 아니라, 렌즈된 원반이 위/아래로 감기고 밝은 띠가 그림자 앞을 가로지르며
- * 얇은 광자 링이 테두리를 감싸는 실루엣을 합성한다.
- * 층: 헤이즈 · 위 아크 · 아래 아크 · 뒤 띠 · 그림자 · 광자 링 · 앞 띠 · 팁 · 도플러 · 블룸.
- */
-function drawGargantua(ctx: CanvasRenderingContext2D, cx: number, cy: number, R: number, t: number) {
+// ── 블랙홀(인터스텔라 Gargantua)을 아스키 글리프로 렌더링 ──────────────
+// 다른 도형처럼 글자로 그린다. 강착원반은 기울어진 평면을 도는 수천 개의 글리프이며,
+// 안쪽 고리가 더 빠르게 돌고(케플러 차등회전), 다가오는 쪽이 밝고(도플러), 빛은 그림자
+// 위로 휘어 헤일로/광자 링이 된다. 모든 반경은 R(그림자 반경) 단위.
+const WARM = ["#7a300f", "#b5501a", "#e86818", "#f59a34", "#ffbe6e", "#ffe0ad", "#fff4e0"];
+const GLYPH_RAMP = [".", ":", "+", "*", "o", "O", "0", "@"];
+const rampChar = (b: number) =>
+  GLYPH_RAMP[Math.max(0, Math.min(GLYPH_RAMP.length - 1, Math.floor(b * GLYPH_RAMP.length)))];
+
+interface DiskP { rr: number; phi: number; j: number; }
+interface OrbitP { rr: number; ang: number; tw: number; }
+interface GargantuaParticles { disk: DiskP[]; halo: OrbitP[]; ring: OrbitP[]; }
+
+function seedGargantua(): GargantuaParticles {
+  const disk: DiskP[] = Array.from({ length: 1700 }, () => {
+    const u = Math.random();
+    return { rr: 1.1 + (3.4 - 1.1) * Math.pow(u, 1.4), phi: Math.random() * Math.PI * 2, j: Math.random() };
+  });
+  const halo: OrbitP[] = Array.from({ length: 620 }, () => {
+    const u = Math.random();
+    return { rr: 1.05 + (1.34 - 1.05) * Math.pow(u, 2.1), ang: Math.random() * Math.PI * 2, tw: Math.random() * Math.PI * 2 };
+  });
+  const ring: OrbitP[] = Array.from({ length: 300 }, (_, i) => ({
+    ang: (i / 300) * Math.PI * 2, rr: 1.015 + Math.random() * 0.05, tw: Math.random() * Math.PI * 2,
+  }));
+  return { disk, halo, ring };
+}
+
+const GARGANTUA_SPIN = 3;    // 자전 속도 배율 — 고속
+const GARGANTUA_TILT = 1.44; // 화면 경사(rad). π/2≈edge-on, 여기선 살짝 기울어짐
+
+function drawGargantua(ctx: CanvasRenderingContext2D, cx: number, cy: number, R: number, t: number, P: GargantuaParticles) {
   const TAU = Math.PI * 2;
-  const BLOOM = 1, DOP = 1, MO = 1; // 절제된 모션: 사진처럼 거의 정지, 밝기만 미세하게 흐른다
-  const breathe = 1 + 0.05 * MO * Math.sin((t * TAU) / 10);
-  const hot = ((t * TAU) / 14) * MO;             // 광자 링 위를 도는 밝은 점(빔 피크)
-  const flow = (t * R * 0.3 * MO) % (3 * R);     // 띠를 따라 흐르는 반짝임
+  const cosI = Math.cos(GARGANTUA_TILT), sinI = Math.sin(GARGANTUA_TILT);
+  const shRx = 1.0 * R, shRy = 0.95 * R;
+  ctx.font = `${Math.max(9, R * 0.08)}px monospace`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
 
-  // 성능: 전체 캔버스가 아니라 블랙홀 바운딩 박스만 채운다
-  const bx = cx - 3.7 * R, by = cy - 3.7 * R, bw = 7.4 * R, bh = 7.4 * R;
-  const box = () => ctx.fillRect(bx, by, bw, bh);
+  // 이벤트 호라이즌 그림자 — 글리프 밭 한가운데의 깨끗한 검은 구멍
+  ctx.globalCompositeOperation = "source-over";
+  ctx.fillStyle = "#000000";
+  ctx.beginPath(); ctx.ellipse(cx, cy, shRx, shRy, 0, 0, TAU); ctx.fill();
 
-  ctx.save();
   ctx.globalCompositeOperation = "lighter";
+  const buckets: number[][] = WARM.map(() => []);
+  const put = (temp: number, sx: number, sy: number, b: number) =>
+    buckets[Math.max(0, Math.min(WARM.length - 1, Math.floor(temp * WARM.length)))].push(sx, sy, b);
 
-  // 1. 따뜻한 주변 헤이즈
-  const haze = ctx.createRadialGradient(cx, cy, 0, cx, cy, 3.5 * R);
-  haze.addColorStop(0, `rgba(255,150,54,${0.13 * BLOOM})`);
-  haze.addColorStop(0.5, `rgba(200,90,27,${0.05 * BLOOM})`);
-  haze.addColorStop(1, "rgba(200,90,27,0)");
-  ctx.fillStyle = haze; box();
+  // 강착원반 — 기울어진 평면을 도는 글리프. 안쪽이 더 빠르다(케플러).
+  for (const p of P.disk) {
+    const rr = p.rr;
+    const phi = p.phi + GARGANTUA_SPIN * Math.pow(rr, -1.5) * t;
+    const c = Math.cos(phi), s = Math.sin(phi);
+    const sx = cx + rr * R * c;
+    const sy = cy + rr * R * s * cosI;
+    const depth = s * sinI;                 // >0 → 뒤편(구 뒤로 가려짐)
+    if (depth > 0) {
+      const nx = (sx - cx) / shRx, ny = (sy - cy) / shRy;
+      if (nx * nx + ny * ny < 1) continue;
+    }
+    const dopp = 1 + 0.6 * (-c);            // 다가오는 쪽(cosφ<0, 왼쪽)이 더 밝다
+    const fall = Math.max(0, 1 - (rr - 1.1) / (3.4 - 1.1));
+    let b = (0.32 + 0.68 * fall) * dopp * (0.85 + 0.3 * p.j);
+    if (b < 0.12) continue;
+    b = Math.min(1, b);
+    put(Math.min(1, 0.32 + fall * 0.72 + 0.18 * (-c)), sx, sy, b);
+  }
 
-  const crescent = (rxI: number, ryI: number, rxO: number, ryO: number, a0: number, a1: number) => {
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, rxO, ryO, 0, a0, a1);
-    ctx.ellipse(cx, cy, rxI, ryI, 0, a1, a0, true);
-    ctx.closePath();
-  };
-  const ramp = (rIn: number, rOut: number, stops: [number, string][]) => {
-    const g = ctx.createRadialGradient(cx, cy, rIn, cx, cy, rOut);
-    for (const [s, c] of stops) g.addColorStop(s, c);
-    return g;
-  };
-  const bandFill = (reach: number, halfT: number, yc: number, stops: [number, string][], aMul = 1) => {
-    ctx.beginPath();
-    ctx.moveTo(cx - reach, cy + yc);
-    ctx.quadraticCurveTo(cx, cy + yc - halfT, cx + reach, cy + yc);
-    ctx.quadraticCurveTo(cx, cy + yc + halfT, cx - reach, cy + yc);
-    ctx.closePath();
-    const lg = ctx.createLinearGradient(cx - reach, cy, cx + reach, cy);
-    for (const [s, c] of stops) lg.addColorStop(s, c);
-    ctx.globalAlpha = aMul * breathe;
-    ctx.fillStyle = lg; ctx.fill();
-    ctx.globalAlpha = 1;
-  };
+  // 렌즈 헤일로 — 그림자 위/아래로 감긴 빛의 고리
+  const rot = t * 0.14;
+  for (const p of P.halo) {
+    const ang = p.ang + rot, rr = p.rr;
+    const sx = cx + rr * R * Math.cos(ang);
+    const sy = cy + rr * R * Math.sin(ang) * 0.95;
+    const top = 1 + 0.28 * (-Math.sin(ang));
+    const tw = 0.72 + 0.28 * Math.sin(t * 1.6 + p.tw);
+    const inner = 1 - (rr - 1.05) / (1.34 - 1.05);
+    let b = (0.4 + 0.6 * inner) * top * tw;
+    if (b < 0.16) continue;
+    put(Math.min(1, 0.58 + inner * 0.5), sx, sy, Math.min(1, b));
+  }
 
-  // 2. 위로 감긴 렌즈 아크 — 넓은 외곽 글로우 + 그림자 위를 또렷하게 감싸는 밝은 안쪽 테
-  ctx.globalAlpha = breathe;
-  crescent(1.02 * R, 1.0 * R, 1.66 * R, 1.58 * R, Math.PI * 1.1, Math.PI * 1.9);
-  ctx.fillStyle = ramp(1.0 * R, 1.66 * R, [
-    [0, "rgba(255,236,182,0.5)"], [0.3, "rgba(245,170,80,0.34)"], [1, "rgba(110,42,12,0)"],
-  ]);
-  ctx.fill();
-  crescent(1.02 * R, 1.0 * R, 1.34 * R, 1.28 * R, Math.PI * 1.06, Math.PI * 1.94);
-  ctx.fillStyle = ramp(1.0 * R, 1.34 * R, [
-    [0, "rgba(255,246,220,0.9)"], [0.5, "rgba(255,198,112,0.62)"], [1, "rgba(235,120,40,0)"],
-  ]);
-  ctx.fill();
+  // 광자 링 — 그림자를 감싸는 얇고 밝은 테 + 도는 밝은 점
+  const hot = (t * 0.5) % TAU;
+  for (const p of P.ring) {
+    const sx = cx + p.rr * R * Math.cos(p.ang);
+    const sy = cy + p.rr * R * Math.sin(p.ang) * 0.95;
+    const d = Math.abs(((p.ang - hot + Math.PI) % TAU) - Math.PI);
+    const spot = 1 + 0.5 * Math.max(0, 1 - d / 0.6);
+    const b = Math.min(1, (0.82 + 0.18 * Math.sin(t * 3 + p.tw)) * spot);
+    buckets[WARM.length - 1].push(sx, sy, b);
+  }
 
-  // 3. 아래로 감긴 아크 — 위와 같되 ~15% 어둡게 (넓은 글로우 + 밝은 안쪽 테)
-  crescent(1.02 * R, 1.0 * R, 1.5 * R, 1.44 * R, Math.PI * 0.14, Math.PI * 0.86);
-  ctx.fillStyle = ramp(1.0 * R, 1.5 * R, [
-    [0, "rgba(255,207,135,0.42)"], [0.42, "rgba(232,104,24,0.28)"], [1, "rgba(110,42,12,0)"],
-  ]);
-  ctx.fill();
-  crescent(1.02 * R, 1.0 * R, 1.28 * R, 1.22 * R, Math.PI * 0.1, Math.PI * 0.9);
-  ctx.fillStyle = ramp(1.0 * R, 1.28 * R, [
-    [0, "rgba(255,232,168,0.7)"], [0.5, "rgba(245,150,60,0.46)"], [1, "rgba(235,120,40,0)"],
-  ]);
-  ctx.fill();
+  // 색 버킷별로 묶어 그린다 (fillStyle 전환 최소화)
+  for (let k = 0; k < WARM.length; k++) {
+    const arr = buckets[k];
+    if (!arr.length) continue;
+    ctx.fillStyle = WARM[k];
+    for (let i = 0; i < arr.length; i += 3) {
+      const b = arr[i + 2];
+      ctx.globalAlpha = 0.45 + 0.55 * b;
+      ctx.fillText(rampChar(b), arr[i], arr[i + 1]);
+    }
+  }
   ctx.globalAlpha = 1;
-
-  // 4. 뒤쪽 수평 원반 띠 (양옆 뒤에서 나와 ±3.5R까지 뻗는다) — 곧 그림자가 가운데를 가린다
-  bandFill(3.5 * R, 0.22 * R, 0, [
-    [0, "rgba(200,90,27,0)"], [0.26, "rgba(232,104,24,0.4)"],
-    [0.5, "rgba(255,217,160,0.72)"], [0.74, "rgba(232,104,24,0.4)"], [1, "rgba(200,90,27,0)"],
-  ]);
-
-  // 5. 그림자 (순수 검정) — 아크·뒤 띠의 가운데를 잘라 고리로 만든다
-  ctx.globalCompositeOperation = "source-over";
-  ctx.beginPath();
-  ctx.ellipse(cx, cy, 1.0 * R, 0.95 * R, 0, 0, TAU);
-  ctx.fillStyle = "#000000"; ctx.fill();
-
-  // 6. 광자 링 — 가장 얇고 밝은 테두리 (부드러운 패스 + 얇은 코어 + 도는 밝은 점)
-  ctx.globalCompositeOperation = "lighter";
-  ctx.beginPath(); ctx.ellipse(cx, cy, 1.045 * R, 0.995 * R, 0, 0, TAU);
-  ctx.lineWidth = 0.06 * R; ctx.strokeStyle = "rgba(255,225,160,0.3)";
-  ctx.shadowBlur = 0.16 * R; ctx.shadowColor = "rgba(255,228,170,0.8)"; ctx.stroke();
-  ctx.beginPath(); ctx.ellipse(cx, cy, 1.03 * R, 0.98 * R, 0, 0, TAU);
-  ctx.lineWidth = Math.max(1, 0.02 * R); ctx.strokeStyle = "rgba(255,251,240,0.96)";
-  ctx.shadowBlur = 0.07 * R; ctx.stroke();
-  const ha = hot % TAU;
-  ctx.beginPath(); ctx.ellipse(cx, cy, 1.03 * R, 0.98 * R, 0, ha - 0.28, ha + 0.28);
-  ctx.lineWidth = 0.028 * R; ctx.strokeStyle = "rgba(255,255,255,0.85)";
-  ctx.shadowBlur = 0.1 * R; ctx.stroke();
-  ctx.shadowBlur = 0;
-
-  // 7. 앞쪽 띠 — 그림자 앞을 가로지르는 밝은 막대 (중심보다 살짝 아래)
-  bandFill(2.8 * R, 0.16 * R, 0.08 * R, [
-    [0, "rgba(245,154,52,0)"], [0.3, "rgba(245,154,52,0.5)"],
-    [0.5, "rgba(255,207,135,0.9)"], [0.7, "rgba(245,154,52,0.5)"], [1, "rgba(245,154,52,0)"],
-  ]);
-  bandFill(2.6 * R, 0.05 * R, 0.08 * R, [
-    [0, "rgba(255,246,230,0)"], [0.4, "rgba(255,246,230,0.85)"],
-    [0.5, "rgba(255,252,246,0.98)"], [0.6, "rgba(255,246,230,0.85)"], [1, "rgba(255,246,230,0)"],
-  ]);
-
-  // 8. 접선 방향으로 흐르는 미세한 반짝임
-  const sx = cx - 1.5 * R + flow;
-  const shimmer = ctx.createRadialGradient(sx, cy + 0.08 * R, 0, sx, cy + 0.08 * R, 0.75 * R);
-  shimmer.addColorStop(0, `rgba(255,246,230,${0.16 * MO})`);
-  shimmer.addColorStop(1, "rgba(255,246,230,0)");
-  ctx.fillStyle = shimmer; box();
-
-  // 9. 팁 매듭 — 왼쪽(다가오는 쪽)이 더 뜨겁고 크다
-  const knot = (kx: number, scale: number, alpha: number) => {
-    const kg = ctx.createRadialGradient(kx, cy, 0, kx, cy, 0.4 * R * scale);
-    kg.addColorStop(0, `rgba(255,232,182,${alpha})`);
-    kg.addColorStop(1, "rgba(255,232,182,0)");
-    ctx.fillStyle = kg; box();
-  };
-  knot(cx - 1.2 * R, 1 + 0.18 * DOP, 0.48 * (1 + 0.12 * DOP));
-  knot(cx + 1.2 * R, 1, 0.4);
-
-  // 10. 도플러 — 왼쪽 더 밝고 희게, 오른쪽 살짝 어둡고 붉게 (영화처럼 절제)
-  const dl = ctx.createRadialGradient(cx - 1.55 * R, cy, 0, cx - 1.55 * R, cy, 1.8 * R);
-  dl.addColorStop(0, `rgba(255,253,246,${0.12 * DOP})`);
-  dl.addColorStop(1, "rgba(255,253,246,0)");
-  ctx.fillStyle = dl; box();
-  ctx.globalCompositeOperation = "source-over";
-  const dr = ctx.createRadialGradient(cx + 1.6 * R, cy, 0, cx + 1.6 * R, cy, 1.7 * R);
-  dr.addColorStop(0, `rgba(12,5,0,${0.11 * DOP})`);
-  dr.addColorStop(1, "rgba(12,5,0,0)");
-  ctx.fillStyle = dr; box();
-
-  // 11. 전역 블룸
-  ctx.globalCompositeOperation = "lighter";
-  const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, 3 * R);
-  glow.addColorStop(0, `rgba(255,243,222,${0.05 * BLOOM * breathe})`);
-  glow.addColorStop(1, "rgba(255,243,222,0)");
-  ctx.fillStyle = glow; box();
-
-  ctx.restore();
 }
 
 export default function AsciiBackground() {
@@ -268,19 +225,19 @@ export default function AsciiBackground() {
     let activeShape: ShapeDef = SHAPE_REGISTRY[activeShapeId];
     let rotation = randomRotation();
 
-    // 블랙홀(Gargantua) 배경의 별. 리사이즈 때만 다시 뿌린다.
+    // 블랙홀(Gargantua) 배경의 아스키 별. 리사이즈 때만 다시 뿌린다.
     let stars: Star[] = [];
     const seedStars = () => {
-      const n = Math.round((viewW * viewH) / 10000);
+      const n = Math.round((viewW * viewH) / 12000);
       stars = Array.from({ length: n }, () => ({
         x: Math.random() * viewW,
         y: Math.random() * viewH,
-        r: Math.random() * 0.9 + 0.3,
-        a: Math.random() * 0.5 + 0.12,
-        warm: Math.random() < 0.18,
+        a: Math.random() * 0.4 + 0.08,
         ph: Math.random() * Math.PI * 2,
       }));
     };
+    // 강착원반/헤일로/광자 링 입자는 R 단위라 한 번만 생성한다 (리사이즈 무관).
+    const gargantua = seedGargantua();
 
     const setShape = (id: ShapeId | "random") => {
       const next = id === "random" ? randomShapeId(activeShapeId) : id;
@@ -434,19 +391,23 @@ export default function AsciiBackground() {
       ctx.fillStyle = "#05060a";
       ctx.fillRect(0, 0, viewW, viewH);
       const haze = ctx.createRadialGradient(cx, cy, 0, cx, cy, 4 * R);
-      haze.addColorStop(0, "rgba(40,20,10,0.22)");
-      haze.addColorStop(1, "rgba(40,20,10,0)");
+      haze.addColorStop(0, "rgba(50,26,12,0.25)");
+      haze.addColorStop(1, "rgba(50,26,12,0)");
       ctx.fillStyle = haze;
       ctx.fillRect(0, 0, viewW, viewH);
 
+      // 아스키 별
+      ctx.font = "8px monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "#aab4c8";
       for (const s of stars) {
         ctx.globalAlpha = s.a * (0.6 + 0.4 * Math.sin(t + s.ph));
-        ctx.fillStyle = s.warm ? "#ffe1b8" : "#cfd6e6";
-        ctx.fillRect(s.x, s.y, s.r, s.r);
+        ctx.fillText(".", s.x, s.y);
       }
       ctx.globalAlpha = 1;
 
-      drawGargantua(ctx, cx, cy, R, t);
+      drawGargantua(ctx, cx, cy, R, t, gargantua);
 
       ctx.globalCompositeOperation = "source-over";
       const vig = ctx.createRadialGradient(
