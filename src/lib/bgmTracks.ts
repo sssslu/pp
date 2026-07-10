@@ -32,6 +32,7 @@ export const DEFAULT_TRACK: TrackConfig = {
 
 // 측정일 2026-07-06 / ffmpeg loudnorm 통합 라우드니스:
 // bgm1 -14.13, bgm2 -16.24, bgm3 -16.24, bgm4 -7.97, bgm5 -9.17, bgm6 -3.82
+// bgm7 -17.39 (측정일 2026-07-11)
 export const TRACKS: Record<string, TrackConfig> = {
   bgm1: { bg: "#0e7490", shapeColor: "#67e8f9", rippleColor: "#fb7185", shapeId: "random", gain: 1.1 },
   bgm2: { bg: "#4c1d95", shapeColor: "#f0abfc", rippleColor: "#22d3ee", shapeId: "random", gain: 1.35 },
@@ -41,6 +42,8 @@ export const TRACKS: Record<string, TrackConfig> = {
   bgm5: { bg: "#6b7280", shapeColor: "#facc15", rippleColor: "#facc15", shapeId: "finalsLogo", gain: 0.8 },
   // 요구사항: 6번 곡은 병원 십자가 고정
   bgm6: { bg: "#e5e7eb", shapeColor: "#ef4444", rippleColor: "#ef4444", shapeId: "hospitalCross", gain: 0.5 },
+  // 요구사항: 7번 곡은 블랙홀(Gargantua) 고정 — 장면 자체가 고정 팔레트라 색은 참고값
+  bgm7: { bg: "#05060a", shapeColor: "#f59a34", rippleColor: "#ffbe6e", shapeId: "blackHole", gain: 1.48 },
 };
 
 export function getTrackConfig(fileName: string): TrackConfig {

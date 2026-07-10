@@ -124,9 +124,10 @@ function buildHospitalCross(): ShapeDef {
 }
 
 /**
- * 블랙홀 (인터스텔라 Gargantua). 와이어프레임이 아니라 AsciiBackground의 전용 렌더러가
- * 레이어드 그라디언트로 그린다 — 렌즈된 원반이 위/아래로 감기고, 밝은 띠가 그림자 앞을
- * 가로지르며, 얇은 광자 링이 테두리를 감싼다. 그래서 정점/엣지는 비워 둔다.
+ * 블랙홀 (인터스텔라 Gargantua). 와이어프레임이 아니라 ascii/gargantua.ts의 전용 렌더러가
+ * 아스키 글리프로 그린다 — 렌즈 호가 그림자 위로 감기고, 밝은 띠가 앞을 가로지르며,
+ * 아래 반원 헤일로/광자 링과 성운·별가루·별똥별 배경이 함께 깔린다.
+ * 색은 트랙 테마와 무관하게 고정 팔레트. 그래서 정점/엣지는 비워 둔다.
  */
 function buildBlackHole(): ShapeDef {
   return { vertices: [], edges: [], gargantua: true };
@@ -141,8 +142,10 @@ export const SHAPE_REGISTRY: Record<ShapeId, ShapeDef> = {
   blackHole: buildBlackHole(),
 };
 
-/** "random" 테마에서 뽑는 풀 — 모든 도형이 후보다 (특정 곡 고정은 bgmTracks.ts에서만 한다) */
-export const RANDOM_SHAPE_POOL: ShapeId[] = Object.keys(SHAPE_REGISTRY) as ShapeId[];
+/** "random" 테마에서 뽑는 풀 — 블랙홀은 bgm7 전용이라 제외한다 (곡 고정은 bgmTracks.ts에서) */
+export const RANDOM_SHAPE_POOL: ShapeId[] = (Object.keys(SHAPE_REGISTRY) as ShapeId[]).filter(
+  (id) => id !== "blackHole",
+);
 
 export function randomShapeId(exclude?: ShapeId): ShapeId {
   const pool = RANDOM_SHAPE_POOL.filter((id) => id !== exclude);

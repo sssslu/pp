@@ -41,6 +41,8 @@ export function useBgmPlayer() {
   const lastGainRef = useRef(BASE_GAIN);
   /** 스킵 페이드아웃이 src 교체를 예약해 둔 상태 (onEnded/음소거가 이를 존중해야 한다) */
   const pendingSwapRef = useRef(false);
+  /** 사용자가 볼륨 버튼으로 직접 끈 상태 — 자동재생 차단으로 꺼진 것과 구분한다 */
+  const mutedByUserRef = useRef(false);
 
   const clearFadeTimers = useCallback(() => {
     for (const timer of fadeTimersRef.current) clearInterval(timer);
@@ -160,13 +162,28 @@ export function useBgmPlayer() {
   const cycleVolume = useCallback(() => {
     ensureAudioGraph();
     if (volumeStateRef.current === "full") {
+      mutedByUserRef.current = true;
       setSyncedVolumeState("off");
     } else {
+      mutedByUserRef.current = false;
       setSyncedVolumeState("full");
       normalizePlaybackRate();
       audioRef.current?.play().catch(() => {});
     }
   }, [ensureAudioGraph, normalizePlaybackRate, setSyncedVolumeState]);
+
+  /**
+   * 화면 어딘가를 터치(클릭)한 것을 재생 동의로 간주한다:
+   * 자동재생 차단 때문에 꺼져 있으면 다시 켠다. 사용자가 볼륨 버튼으로
+   * 직접 껐다면 그 선택을 존중해 아무것도 하지 않는다.
+   */
+  const resumeIfAutoMuted = useCallback(() => {
+    if (volumeStateRef.current !== "off" || mutedByUserRef.current) return;
+    ensureAudioGraph();
+    setSyncedVolumeState("full");
+    normalizePlaybackRate();
+    audioRef.current?.play().catch(muteOnAutoplayBlock);
+  }, [ensureAudioGraph, muteOnAutoplayBlock, normalizePlaybackRate, setSyncedVolumeState]);
 
   /** 페이지 로드 때 만들어진 랜덤 순서를 따라 다음 곡으로 전환 (좌표에서 리플 발사) */
   const skipToNextTrack = useCallback((originX: number, originY: number) => {
@@ -272,6 +289,7 @@ export function useBgmPlayer() {
     cycleVolume,
     skipToNextTrack,
     ensureAudioGraph,
+    resumeIfAutoMuted,
     onTrackEnded,
   };
 }

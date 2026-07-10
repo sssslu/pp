@@ -74,7 +74,7 @@ function HomeInner() {
   const [hintOn, setHintOn]               = useState(false);
 
   const {
-    audioRef, volumeState, cycleVolume, skipToNextTrack, ensureAudioGraph, onTrackEnded,
+    audioRef, volumeState, cycleVolume, skipToNextTrack, ensureAudioGraph, resumeIfAutoMuted, onTrackEnded,
   } = useBgmPlayer();
 
   // ── 롱프레스(곡 넘김) / 클릭(볼륨 토글) ───────────────────────────
@@ -166,14 +166,20 @@ function HomeInner() {
     return () => controller.abort();
   }, []);
 
-  // ── 화면 아무 곳 클릭/터치 시 미세 리플 ──────────────────────────
+  // ── 화면 아무 곳 클릭/터치 시 미세 리플 + 재생 동의 ────────────────
   useEffect(() => {
     const fireMiniRipple = (x: number, y: number) => {
       if (isLongPress.current || Date.now() < cooldownUntil.current) return;
       ensureAudioGraph();
       dispatchRipple({ x, y, band: 15 });
     };
-    const onClick = (e: MouseEvent) => fireMiniRipple(e.clientX, e.clientY);
+    const onClick = (e: MouseEvent) => {
+      fireMiniRipple(e.clientX, e.clientY);
+      // 화면을 한 번이라도 터치(클릭)하면 재생 동의로 간주 — 자동재생 차단으로
+      // 꺼져 있었다면 켠다. 볼륨 버튼의 onClick(음소거 토글)이 window보다 먼저
+      // 처리되므로, 버튼으로 방금 껐거나 켠 상태를 이 리스너가 뒤집지 않는다.
+      resumeIfAutoMuted();
+    };
     const onTouch = (e: TouchEvent) => {
       if (e.touches.length > 0) fireMiniRipple(e.touches[0].clientX, e.touches[0].clientY);
     };
@@ -183,7 +189,7 @@ function HomeInner() {
       window.removeEventListener("click", onClick);
       window.removeEventListener("touchstart", onTouch);
     };
-  }, [ensureAudioGraph]);
+  }, [ensureAudioGraph, resumeIfAutoMuted]);
 
   // ── 섹션 선택 / 닫기 ─────────────────────────────────────────────
   const handleSelect = useCallback((index: number) => {
@@ -317,6 +323,9 @@ function HomeInner() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -16 }}
               transition={{ duration: 0.4 }}
+              // 캔버스(z-0)가 static 콘텐츠보다 위에 그려지므로 명시적으로 띄운다
+              // — 블랙홀처럼 불투명한 장면에서도 프로필 타이틀이 보여야 한다
+              className="relative z-10"
             >
               <HeroSection />
             </motion.div>
