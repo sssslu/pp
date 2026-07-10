@@ -115,12 +115,28 @@ export default function AsciiBackground() {
     let activeShape: ShapeDef = SHAPE_REGISTRY[activeShapeId];
     let rotation = randomRotation();
 
+    // 블랙홀 이벤트 호라이즌 그라디언트: 레이아웃/도형이 바뀔 때만 다시 만든다 (매 프레임 재생성 방지).
+    let coreGrad: CanvasGradient | null = null;
+    const updateCoreGradient = () => {
+      const fill = activeShape.coreFill;
+      if (!fill) { coreGrad = null; return; }
+      const cx = viewW / 2, cy = viewH / 2;
+      const r = centerShapeRadius * (activeShape.scale ?? 1) * fill;
+      if (r <= 0) { coreGrad = null; return; }
+      const g = ctx.createRadialGradient(cx, cy, r * 0.2, cx, cy, r);
+      g.addColorStop(0, "rgba(0,0,0,0.82)");
+      g.addColorStop(0.7, "rgba(0,0,0,0.6)");
+      g.addColorStop(1, "rgba(0,0,0,0)");
+      coreGrad = g;
+    };
+
     const setShape = (id: ShapeId | "random") => {
       const next = id === "random" ? randomShapeId(activeShapeId) : id;
       if (next === activeShapeId) return;
       activeShapeId = next;
       activeShape = SHAPE_REGISTRY[next];
       rotation = randomRotation();
+      updateCoreGradient();
     };
 
     // 색상별 패턴 캐시 (dpr이 바뀌면 통째로 재생성)
@@ -166,6 +182,7 @@ export default function AsciiBackground() {
       canvas.height = Math.round(viewH * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       centerShapeRadius = Math.min(CENTER_SHAPE_MAX, Math.max(CENTER_SHAPE_MIN, viewW * CENTER_SHAPE_RATIO)) / 2;
+      updateCoreGradient();
     };
 
     const offTheme = onVisualTheme((theme) => {
@@ -229,6 +246,18 @@ export default function AsciiBackground() {
 
     const strokeShape = (time: number) => {
       const radius = centerShapeRadius * (activeShape.scale ?? 1);
+
+      // 블랙홀 이벤트 호라이즌: 미리 만들어둔 그라디언트로 중심을 어둡게 눌러 빛을 삼킨 코어를 만든다.
+      // 원반 링/나선을 그리기 전에 깔아, 밝은 선이 어두운 구(球) 위를 지나가게 한다.
+      if (activeShape.coreFill && coreGrad) {
+        const r = radius * activeShape.coreFill;
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = coreGrad;
+        ctx.beginPath();
+        ctx.arc(viewW / 2, viewH / 2, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
       const { main, accent } = projectShape(
         activeShape, time, viewW / 2, viewH / 2, radius, rotation,
       );
