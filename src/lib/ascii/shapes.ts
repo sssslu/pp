@@ -36,7 +36,6 @@ export interface ShapeDef {
 
 export type ShapeId =
   | "icosahedron"
-  | "globe"
   | "finalsLogo"
   | "hospitalCross"
   | "blackHole";
@@ -70,48 +69,6 @@ function buildIcosahedron(): ShapeDef {
     }
   }
   return { vertices: verts, edges };
-}
-
-/** 위도 링 + 경도선이 있는 와이어프레임 지구본. 축이 23.5° 기울어진 채 자전한다. */
-function buildGlobe(): ShapeDef {
-  const RINGS = 7;
-  const RING_SEGS = 28;
-  const MERIDIANS = 12;
-  const MERIDIAN_STEPS = 14;
-
-  const verts: Vec3[] = [];
-  const edges: [number, number][] = [];
-
-  const push = (th: number, ph: number): number => {
-    verts.push([
-      Math.sin(th) * Math.sin(ph),
-      -Math.cos(th),
-      Math.sin(th) * Math.cos(ph),
-    ]);
-    return verts.length - 1;
-  };
-
-  // 위도 링
-  for (let i = 1; i <= RINGS; i++) {
-    const th = (i / (RINGS + 1)) * Math.PI;
-    const start = verts.length;
-    for (let j = 0; j < RING_SEGS; j++) push(th, (j / RING_SEGS) * Math.PI * 2);
-    for (let j = 0; j < RING_SEGS; j++) {
-      edges.push([start + j, start + ((j + 1) % RING_SEGS)]);
-    }
-  }
-  // 경도선 (극점 포함)
-  for (let m = 0; m < MERIDIANS; m++) {
-    const ph = (m / MERIDIANS) * Math.PI * 2;
-    let prev = -1;
-    for (let s = 0; s <= MERIDIAN_STEPS; s++) {
-      const cur = push((s / MERIDIAN_STEPS) * Math.PI, ph);
-      if (prev >= 0) edges.push([prev, cur]);
-      prev = cur;
-    }
-  }
-
-  return { vertices: verts, edges, upright: true, tiltZ: -0.41, cullBack: true, edgeScale: 0.5 };
 }
 
 /**
@@ -238,7 +195,6 @@ function buildBlackHole(): ShapeDef {
 
 export const SHAPE_REGISTRY: Record<ShapeId, ShapeDef> = {
   icosahedron: buildIcosahedron(),
-  globe: buildGlobe(),
   finalsLogo: buildFinalsLogo(),
   hospitalCross: buildHospitalCross(),
   blackHole: buildBlackHole(),
