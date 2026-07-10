@@ -53,7 +53,10 @@ interface Ripple {
   color: string;
 }
 
-interface Star { x: number; y: number; a: number; ph: number; }
+interface Star { x: number; y: number; a: number; ph: number; sp: number; ch: string; warm: boolean; }
+
+/** 블랙홀 배경 아스키 노이즈(우주 먼지)의 차가운 색 — 트랙 테마색 대신 고정 */
+const SPACE_NOISE_COLOR = "#9fb2d6";
 
 function randItem<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
@@ -228,13 +231,19 @@ export default function AsciiBackground() {
     // 블랙홀(Gargantua) 배경의 아스키 별. 리사이즈 때만 다시 뿌린다.
     let stars: Star[] = [];
     const seedStars = () => {
-      const n = Math.round((viewW * viewH) / 12000);
-      stars = Array.from({ length: n }, () => ({
-        x: Math.random() * viewW,
-        y: Math.random() * viewH,
-        a: Math.random() * 0.4 + 0.08,
-        ph: Math.random() * Math.PI * 2,
-      }));
+      const n = Math.round((viewW * viewH) / 6000);
+      stars = Array.from({ length: n }, () => {
+        const r = Math.random();
+        return {
+          x: Math.random() * viewW,
+          y: Math.random() * viewH,
+          a: Math.random() * 0.55 + 0.12,
+          ph: Math.random() * Math.PI * 2,
+          sp: 1 + Math.random() * 3,                      // 별마다 다른 반짝임 속도
+          ch: r < 0.72 ? "." : r < 0.93 ? "+" : "*",      // 대부분 먼지, 가끔 밝은 별
+          warm: Math.random() < 0.14,
+        };
+      });
     };
     // 강착원반/헤일로/광자 링 입자는 R 단위라 한 번만 생성한다 (리사이즈 무관).
     const gargantua = seedGargantua();
@@ -386,24 +395,34 @@ export default function AsciiBackground() {
       const cx = viewW / 2, cy = viewH / 2;
       const R = Math.min(viewW, viewH) * 0.16;
 
+      // 어두운 우주 바탕
       ctx.globalCompositeOperation = "source-over";
       ctx.globalAlpha = 1;
       ctx.fillStyle = "#05060a";
       ctx.fillRect(0, 0, viewW, viewH);
+
+      // 기존 배경처럼 아스키 노이즈(우주 먼지) — 차가운 색, 격자 오프셋으로 은은히 깜빡인다
+      const noisePatterns = getPatterns("noise", SPACE_NOISE_COLOR);
+      const np = noisePatterns[tileIdx % noisePatterns.length];
+      np.setTransform(patternTransform());
+      ctx.fillStyle = np;
+      ctx.fillRect(0, 0, viewW, viewH);
+
+      // 중앙의 따뜻한 헤이즈
       const haze = ctx.createRadialGradient(cx, cy, 0, cx, cy, 4 * R);
       haze.addColorStop(0, "rgba(50,26,12,0.25)");
       haze.addColorStop(1, "rgba(50,26,12,0)");
       ctx.fillStyle = haze;
       ctx.fillRect(0, 0, viewW, viewH);
 
-      // 아스키 별
-      ctx.font = "8px monospace";
+      // 반짝이는 별가루 (아스키) — 별마다 다른 속도로 명멸한다
+      ctx.font = "9px monospace";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillStyle = "#aab4c8";
       for (const s of stars) {
-        ctx.globalAlpha = s.a * (0.6 + 0.4 * Math.sin(t + s.ph));
-        ctx.fillText(".", s.x, s.y);
+        ctx.globalAlpha = s.a * (0.32 + 0.68 * Math.abs(Math.sin(t * s.sp + s.ph)));
+        ctx.fillStyle = s.warm ? "#ffe4c0" : "#dfe8ff";
+        ctx.fillText(s.ch, s.x, s.y);
       }
       ctx.globalAlpha = 1;
 
