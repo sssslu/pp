@@ -89,7 +89,7 @@ export const ko: Translations = {
   projects: {
     descriptions: {
       "FreeHWP":
-        "한글(HWP)과 PDF 를 무료로 읽고 편집할 수 있는 툴입니다. 사이트 : freehwp.com",
+        "한글(HWP)과 PDF 를 무료로 읽고 편집할 수 있는 툴입니다. 여러가지 오피스와 기능들도 있습니다. 사이트 : freehwp.com",
       "nbidiaGLM":
         "엔비디아에서 제공하는 LLM을 사용한 챗봇 하네스입니다.",
       "TSLAhunter":
