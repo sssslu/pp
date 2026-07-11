@@ -78,41 +78,48 @@ export default function AboutSection() {
             <RevealGroup>
               <p>
                 {isEn ? (
-                  <>- Graduated from <RedactedItem text="Changwonnam High School" /> / Active in <RedactedItem text="Single Crystal Research Club" /></>
+                  <>- 2012~ Active in <RedactedItem text="Changwonnam High Single Crystal Research Club" /></>
                 ) : (
-                  <>- <RedactedItem text="창원남고등학교" /> 졸업 / <RedactedItem text="창원남고 단결정 연구 동아리" /> 활동 </>
+                  <>- 2012~<RedactedItem text="창원남고 단결정 연구 동아리" /> 활동 </>
                 )}
               </p>
               <p>
                 {isEn ? (
-                  <>- Graduated from <RedactedItem text="Seoul National University of Science and Technology" /> — <RedactedItem text="Electronic IT Media Engineering" /></>
+                  <>- 2015~ Graduated from <RedactedItem text="Seoul National University of Science and Technology" /> — <RedactedItem text="Electronic IT Media Engineering" /></>
                 ) : (
-                  <>- <RedactedItem text="서울과학기술대학교" /> <RedactedItem text="전자IT미디어공학과" /> 졸업</>
-                )}
-              </p>
-            </RevealGroup>
-            <RevealGroup>
-              <p>
-                {isEn ? (
-                  <>- <RedactedItem text="Yongsan KATUSA" /> <RedactedItem text="Military Police" /> — Honorably discharged</>
-                ) : (
-                  <>- <RedactedItem text="용산 KATUSA" /><RedactedItem text="Military Police" /> 만기 전역</>
+                  <>- 2015~<RedactedItem text="서울과학기술대학교" /> <RedactedItem text="전자IT미디어공학과" /> 졸업</>
                 )}
               </p>
             </RevealGroup>
             <RevealGroup>
               <p>
                 {isEn ? (
-                  <>- <RedactedItem text="TaehwaInnovation" /> <RedactedItem text="R&D Software Lab" /> — Researcher</>
+                  <>- 2016~ <RedactedItem text="Yongsan KATUSA" /> <RedactedItem text="Military Police" /> — Honorably discharged</>
                 ) : (
-                  <>- <RedactedItem text="태화이노베이션" /> <RedactedItem text="R&D 소프트웨어 연구소" /> 연구원</>
+                  <>- 2016~<RedactedItem text="용산 KATUSA" /><RedactedItem text="Military Police" /> 만기 전역</>
+                )}
+              </p>
+            </RevealGroup>
+            <RevealGroup>
+              <p>
+                {isEn ? (
+                  <>- 2021~ <RedactedItem text="TaehwaInnovation" /> <RedactedItem text="R&D Software Lab" /> — Researcher</>
+                ) : (
+                  <>- 2021~<RedactedItem text="태화이노베이션" /> <RedactedItem text="R&D 소프트웨어 연구소" /> 연구원</>
                 )}
               </p>
               <p>
                 {isEn ? (
-                  <>- Worked at <RedactedItem text="Singapore crypto exchange Bitget" /> in a <RedactedItem text="commission-based role" /></>
+                  <>- 2022~ Worked at <RedactedItem text="Singapore crypto exchange Bitget" /> in a <RedactedItem text="commission-based role" /></>
                 ) : (
-                  <>- <RedactedItem text="싱가폴 암호화폐 거래소 Bitget" /> 에서 <RedactedItem text="커미션직" />으로 근무</>
+                  <>- 2022~<RedactedItem text="싱가폴 암호화폐 거래소 Bitget" /> 에서 <RedactedItem text="커미션직" />으로 근무</>
+                )}
+              </p>
+              <p>
+                {isEn ? (
+                  <>- 2025~ <RedactedItem text="Crypto Quant" /></>
+                ) : (
+                  <>- 2025~<RedactedItem text="암호화폐 퀀트" /></>
                 )}
               </p>
             </RevealGroup>
@@ -125,9 +132,9 @@ export default function AboutSection() {
               <div>
                 <p>
                   {isEn ? (
-                    <>- Used <RedactedItem text="GPT API, Python" /> and automation systems to build and operate a <RedactedItem text="real trading system" />. <RedactedItem text="(Turned it into a course and sold it on Inflearn!)" /></>
+                    <>- Used <RedactedItem text="various LLM APIs" /> and automation systems to build and operate a <RedactedItem text="real trading system" />. <RedactedItem text="(Sold a course too!)" /></>
                   ) : (
-                    <>- <RedactedItem text="GPT API, Python" />, 자동화 시스템을 활용해 <RedactedItem text="실제 트레이딩 시스템" />을 구현하고 운영한 경험이 있습니다. <RedactedItem text="(강의로 만들어 인프런에 팔아먹었습니다!)" /></>
+                    <>- <RedactedItem text="각종 LLM API" />, 자동화 시스템을 활용해 <RedactedItem text="실제 트레이딩 시스템" />을 구현하고 운영한 경험이 있습니다. <RedactedItem text="(강의도 팔았습니다)" /></>
                   )}
                 </p>
               <div className="flex flex-col items-start ml-10 mt-1">
@@ -160,13 +167,7 @@ export default function AboutSection() {
                   <>- <RedactedItem text="우리은행" /> 사서 프로그램 <RedactedItem text="Fever" /> 와 <RedactedItem text="농협은행" /> 고속 스캔 프로그램 <RedactedItem text="DASS" /> 를 유지보수한 경험이 있습니다.</>
                 )}
               </p>
-              <p>
-                {isEn ? (
-                  <>- Participated in various <RedactedItem text="experimental projects" /> at a <RedactedItem text="Korean R&D research institute" />.</>
-                ) : (
-                  <>- <RedactedItem text="한국의 개발 관련 연구소" />에서 여러가지 <RedactedItem text="실험적인 프로젝트" />에서 활동한 경험이 있습니다.</>
-                )}
-              </p>
+            
             </RevealGroup>
             <RevealGroup>
               <p>

@@ -170,20 +170,23 @@ export function randomRotation(): RotationConfig {
   };
 }
 
+// 회전각의 cos/sin은 프레임당 한 번만 계산해 넘긴다 — 정점마다 트리그를 다시 돌리지 않는다
 function rotate3D(
   x: number, y: number, z: number,
-  rx: number, ry: number, rz: number,
+  cosX: number, sinX: number,
+  cosY: number, sinY: number,
+  cosZ: number, sinZ: number,
 ): Vec3 {
-  let ny = y * Math.cos(rx) - z * Math.sin(rx);
-  let nz = y * Math.sin(rx) + z * Math.cos(rx);
+  let ny = y * cosX - z * sinX;
+  let nz = y * sinX + z * cosX;
   y = ny; z = nz;
 
-  let nx = x * Math.cos(ry) + z * Math.sin(ry);
-  nz = -x * Math.sin(ry) + z * Math.cos(ry);
+  let nx = x * cosY + z * sinY;
+  nz = -x * sinY + z * cosY;
   x = nx; z = nz;
 
-  nx = x * Math.cos(rz) - y * Math.sin(rz);
-  ny = x * Math.sin(rz) + y * Math.cos(rz);
+  nx = x * cosZ - y * sinZ;
+  ny = x * sinZ + y * cosZ;
   return [nx, ny, z];
 }
 
@@ -217,10 +220,14 @@ export function projectShape(
     ? (def.tiltZ ?? 0.08 * Math.sin(t * 0.3))
     : t * rotation.z + rotation.offset * 1.3;
 
+  const cosX = Math.cos(rx), sinX = Math.sin(rx);
+  const cosY = Math.cos(ry), sinY = Math.sin(ry);
+  const cosZ = Math.cos(rz), sinZ = Math.sin(rz);
+
   const pts: [number, number][] = [];
   const depths: number[] = [];
   for (const [x0, y0, z0] of def.vertices) {
-    const [x, y, z] = rotate3D(x0, y0, z0, rx, ry, rz);
+    const [x, y, z] = rotate3D(x0, y0, z0, cosX, sinX, cosY, sinY, cosZ, sinZ);
     pts.push([cx + x * radius, cy + y * radius]);
     depths.push(z);
   }

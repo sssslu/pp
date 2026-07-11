@@ -129,8 +129,9 @@ export function seedStars(w: number, h: number): Star[] {
     });
   }
 
-  // 폰트 전환을 줄이기 위해 크기별로 정렬해 둔다
-  stars.sort((s1, s2) => s1.f - s2.f);
+  // 폰트/색 전환을 줄이기 위해 크기별 → 색별로 정렬해 둔다
+  // (별은 점이라 그리기 순서가 바뀌어도 겹침 차이가 사실상 없다)
+  stars.sort((s1, s2) => s1.f - s2.f || (s1.color < s2.color ? -1 : s1.color > s2.color ? 1 : 0));
   return stars;
 }
 
@@ -143,6 +144,8 @@ export interface Nebula {
   color: [number, number, number];
   a: number;
   ph: number;
+  /** 첫 프레임에 만들어 캐시하는 그라디언트 — 매 프레임 재생성을 피한다 */
+  grad?: CanvasGradient;
 }
 
 const NEBULA_COLORS: [number, number, number][] = [
@@ -165,22 +168,33 @@ export function seedNebulas(w: number, h: number): Nebula[] {
   }));
 }
 
+/** 성운 맥동(pulse)의 최댓값 — 그라디언트는 이 값 기준으로 굽고 globalAlpha로 줄인다 */
+const NEBULA_PULSE_MAX = 1.22;
+
 function drawNebulas(ctx: CanvasRenderingContext2D, nebulas: Nebula[], t: number) {
   for (const nb of nebulas) {
     const pulse = 1 + 0.22 * Math.sin(t * 0.16 + nb.ph);
-    const [r, g, b] = nb.color;
+    // 그라디언트는 최대 밝기로 한 번만 만들고, 맥동은 globalAlpha 배율로 표현한다.
+    // 모든 스톱의 알파가 pulse에 선형이라 결과는 매 프레임 재생성과 동일하다.
+    if (!nb.grad) {
+      const [r, g, b] = nb.color;
+      const aMax = nb.a * NEBULA_PULSE_MAX;
+      const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, nb.r);
+      grad.addColorStop(0, `rgba(${r},${g},${b},${aMax.toFixed(4)})`);
+      grad.addColorStop(0.55, `rgba(${r},${g},${b},${(aMax * 0.4).toFixed(4)})`);
+      grad.addColorStop(1, "rgba(0,0,0,0)");
+      nb.grad = grad;
+    }
     ctx.save();
     ctx.translate(nb.x, nb.y);
     ctx.rotate(nb.rot);
     ctx.scale(nb.sx, 1);
-    const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, nb.r);
-    grad.addColorStop(0, `rgba(${r},${g},${b},${(nb.a * pulse).toFixed(3)})`);
-    grad.addColorStop(0.55, `rgba(${r},${g},${b},${(nb.a * pulse * 0.4).toFixed(3)})`);
-    grad.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = grad;
+    ctx.globalAlpha = pulse / NEBULA_PULSE_MAX;
+    ctx.fillStyle = nb.grad;
     ctx.fillRect(-nb.r, -nb.r, nb.r * 2, nb.r * 2);
     ctx.restore();
   }
+  ctx.globalAlpha = 1;
 }
 
 // ── 별똥별 — 형형색색 꼬리를 그리며 자주 떨어진다 ────────────────────
@@ -188,7 +202,7 @@ function drawNebulas(ctx: CanvasRenderingContext2D, nebulas: Nebula[], t: number
 interface Meteor { x: number; y: number; vx: number; vy: number; born: number; color: string; }
 
 const METEOR_COLORS = ["#bfe9ff", "#ffd9a0", "#ffb0b0", "#b0ffcf", "#d0b8ff", "#fff3b0"];
-let meteors: Meteor[] = [];
+const meteors: Meteor[] = [];
 let nextMeteorAt = 0;
 const METEOR_LIFE = 1.1;
 
@@ -229,7 +243,10 @@ function drawMeteor(ctx: CanvasRenderingContext2D, w: number, h: number, t: numb
       ctx.fillText(i === 0 ? "*" : ".", px, py);
     }
   }
-  meteors = meteors.filter((m) => t - m.born <= METEOR_LIFE);
+  // 수명이 끝난 것만 제자리에서 제거한다 (매 프레임 새 배열 할당 방지)
+  for (let i = meteors.length - 1; i >= 0; i--) {
+    if (t - meteors[i].born > METEOR_LIFE) meteors.splice(i, 1);
+  }
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = "source-over";
 }
@@ -252,6 +269,17 @@ export function blackHoleRadius(w: number, h: number): number {
   return Math.min(w, h) * 0.16;
 }
 
+// 색 온도별 글리프 버킷 — 매 프레임 배열을 새로 만들지 않고 재사용한다 (GC 부담 감소)
+const glyphBuckets: number[][] = WARM.map(() => []);
+
+function putGlyph(temp: number, sx: number, sy: number, b: number) {
+  glyphBuckets[Math.max(0, Math.min(WARM.length - 1, Math.floor(temp * WARM.length)))].push(sx, sy, b);
+}
+
+// 폰트 문자열은 R가 그대로면 다시 만들지 않는다 (매 프레임 문자열 생성 방지)
+let cachedFontR = -1;
+let cachedFont = "";
+
 function drawGargantua(
   ctx: CanvasRenderingContext2D,
   cx: number, cy: number, R: number, t: number,
@@ -259,7 +287,11 @@ function drawGargantua(
 ) {
   const cosI = Math.cos(GARGANTUA_TILT);
   const shRx = 1.0 * R, shRy = 0.95 * R;
-  ctx.font = `${Math.max(9, R * 0.08)}px monospace`;
+  if (R !== cachedFontR) {
+    cachedFontR = R;
+    cachedFont = `${Math.max(9, R * 0.08)}px monospace`;
+  }
+  ctx.font = cachedFont;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
@@ -271,9 +303,9 @@ function drawGargantua(
   ctx.fill();
 
   ctx.globalCompositeOperation = "lighter";
-  const buckets: number[][] = WARM.map(() => []);
-  const put = (temp: number, sx: number, sy: number, b: number) =>
-    buckets[Math.max(0, Math.min(WARM.length - 1, Math.floor(temp * WARM.length)))].push(sx, sy, b);
+  const buckets = glyphBuckets;
+  for (const bucket of buckets) bucket.length = 0;
+  const put = putGlyph;
 
   // 강착원반 — 하나의 폐순환. 입자의 궤도 앞쪽 반 바퀴는 납작한 띠(오른쪽→왼쪽)로,
   // 뒤쪽 반 바퀴는 중력렌즈로 그림자 위에 감아올린 위쪽 호(왼쪽→오른쪽)로 그린다.
@@ -282,7 +314,8 @@ function drawGargantua(
   const span = DISK_R_OUT - DISK_R_IN;
   for (const p of P.disk) {
     const rr = DISK_R_IN + ((((p.rr - DISK_R_IN) - DISK_INFLOW * t) % span) + span) % span;
-    const phi = p.phi - GARGANTUA_SPIN * Math.pow(rr, -1.5) * t;
+    // rr^-1.5 — 범용 pow보다 sqrt가 훨씬 싸다 (결과는 ~1ulp 내 동일)
+    const phi = p.phi - GARGANTUA_SPIN * (1 / (rr * Math.sqrt(rr))) * t;
     const phiN = ((phi % TAU) + TAU) % TAU;
     const c = Math.cos(phiN), s = Math.sin(phiN);
 
@@ -366,9 +399,9 @@ function drawGargantua(
   }
 
   // 광자 링 — 아래 반원만. 헤일로와 같은 속도로 돌다가 디스크 평면 근처에서 소멸한다.
-  const hot = (t * HALO_SPEED_BOTTOM) % TAU;
+  const hot = rotBottom % TAU;
   for (const p of P.ring) {
-    const ang = p.ang + t * HALO_SPEED_BOTTOM;
+    const ang = p.ang + rotBottom;
     const sinA = Math.sin(ang);
     if (sinA < 0.3) continue;
     const edge = Math.min(1, (sinA - 0.3) / 0.27);
@@ -394,6 +427,9 @@ function drawGargantua(
   ctx.globalAlpha = 1;
 }
 
+// 헤이즈/비네트 그라디언트 캐시 — 화면 크기가 같으면 재사용한다 (캔버스는 페이지당 1개)
+let sceneGrads: { w: number; h: number; haze: CanvasGradient; vig: CanvasGradient } | null = null;
+
 /** 매 프레임 블랙홀 장면 전체(배경 포함)를 그린다. now는 performance.now() (ms). */
 export function drawGargantuaScene(
   ctx: CanvasRenderingContext2D,
@@ -407,6 +443,16 @@ export function drawGargantuaScene(
   const cx = w / 2, cy = h / 2;
   const R = blackHoleRadius(w, h);
 
+  if (!sceneGrads || sceneGrads.w !== w || sceneGrads.h !== h) {
+    const haze = ctx.createRadialGradient(cx, cy, 0, cx, cy, 4 * R);
+    haze.addColorStop(0, "rgba(50,26,12,0.25)");
+    haze.addColorStop(1, "rgba(50,26,12,0)");
+    const vig = ctx.createRadialGradient(cx, cy, Math.min(w, h) * 0.35, cx, cy, Math.max(w, h) * 0.75);
+    vig.addColorStop(0, "rgba(0,0,0,0)");
+    vig.addColorStop(1, "rgba(0,0,0,0.55)");
+    sceneGrads = { w, h, haze, vig };
+  }
+
   // 우주 배경
   ctx.globalCompositeOperation = "source-over";
   ctx.globalAlpha = 1;
@@ -416,22 +462,23 @@ export function drawGargantuaScene(
   // 성운 — 은은하게 숨쉬는 색 구름
   drawNebulas(ctx, nebulas, t);
 
-  const haze = ctx.createRadialGradient(cx, cy, 0, cx, cy, 4 * R);
-  haze.addColorStop(0, "rgba(50,26,12,0.25)");
-  haze.addColorStop(1, "rgba(50,26,12,0)");
-  ctx.fillStyle = haze;
+  ctx.fillStyle = sceneGrads.haze;
   ctx.fillRect(0, 0, w, h);
 
-  // 은하수 별가루 (크기별로 정렬돼 있어 폰트 전환 최소)
+  // 은하수 별가루 (크기별 → 색별로 정렬돼 있어 폰트/스타일 전환 최소)
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   let curFont = 0;
+  let curColor = "";
   for (const s of stars) {
     if (s.f !== curFont) {
       curFont = s.f;
       ctx.font = `${s.f}px monospace`;
     }
-    ctx.fillStyle = s.color;
+    if (s.color !== curColor) {
+      curColor = s.color;
+      ctx.fillStyle = s.color;
+    }
     ctx.globalAlpha = s.a * (0.55 + 0.45 * Math.sin(t * s.spd + s.ph));
     ctx.fillText(s.ch, s.x, s.y);
   }
@@ -450,9 +497,6 @@ export function drawGargantuaScene(
 
   // 비네트
   ctx.globalCompositeOperation = "source-over";
-  const vig = ctx.createRadialGradient(cx, cy, Math.min(w, h) * 0.35, cx, cy, Math.max(w, h) * 0.75);
-  vig.addColorStop(0, "rgba(0,0,0,0)");
-  vig.addColorStop(1, "rgba(0,0,0,0.55)");
-  ctx.fillStyle = vig;
+  ctx.fillStyle = sceneGrads.vig;
   ctx.fillRect(0, 0, w, h);
 }

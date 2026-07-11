@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import HeroSection from "@/components/HeroSection";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
@@ -24,6 +24,11 @@ const VOLUME_BTN: Record<VolumeState, string> = {
 };
 
 const LONG_PRESS_MS = 600; // globals.css의 .ring-press 시간과 동기
+
+/** 미세 리플 최소 생성 간격(ms) — 멀티터치/연타 폭주로 리플이 쌓여 랙이 생기는 것을 막는다 */
+const MINI_RIPPLE_MIN_MS = 160;
+/** 터치 후 이 시간(ms) 안에 오는 click은 같은 탭의 합성 click으로 보고 리플을 중복 생성하지 않는다 */
+const TOUCH_CLICK_DEDUPE_MS = 700;
 
 // 롱프레스(곡 넘김) 발견 유도 힌트: 버튼이 은은하게 glow 하며 위에 "LONG PRESS!!!"를 띄운다.
 // 한 곡을 HINT_MIN_PLAY_S 이상 들었을 때만 뜨고, 한 번이라도 롱프레스하면 이후로 안 뜬다.
@@ -168,21 +173,41 @@ function HomeInner() {
   }, []);
 
   // ── 화면 아무 곳 클릭/터치 시 미세 리플 + 재생 동의 ────────────────
+  const lastMiniRippleAt = useRef(0);
+  const lastTouch        = useRef({ t: 0, x: 0, y: 0 });
+
   useEffect(() => {
+    // 리플 생성만 빈도 제한한다 — 오디오 그래프/재생 동의 처리는 매번 그대로 수행
     const fireMiniRipple = (x: number, y: number) => {
       if (isLongPress.current || Date.now() < cooldownUntil.current) return;
-      ensureAudioGraph();
+      const now = Date.now();
+      if (now - lastMiniRippleAt.current < MINI_RIPPLE_MIN_MS) return;
+      lastMiniRippleAt.current = now;
       dispatchRipple({ x, y, band: 15 });
     };
     const onClick = (e: MouseEvent) => {
-      fireMiniRipple(e.clientX, e.clientY);
+      ensureAudioGraph();
+      // 탭 직후 따라오는 '합성 click'만 걸러낸다 — pointerType이 있으면 그것으로,
+      // 없으면 시간+거리(같은 지점)로 판별한다. 터치 후 다른 위치의 진짜 마우스
+      // 클릭(터치스크린 노트북)까지 억제하면 안 되기 때문.
+      const pointerType = (e as PointerEvent).pointerType;
+      const fromTouch = pointerType
+        ? pointerType === "touch"
+        : Date.now() - lastTouch.current.t <= TOUCH_CLICK_DEDUPE_MS &&
+          Math.hypot(e.clientX - lastTouch.current.x, e.clientY - lastTouch.current.y) < 30;
+      if (!fromTouch) fireMiniRipple(e.clientX, e.clientY);
       // 화면을 한 번이라도 터치(클릭)하면 재생 동의로 간주 — 자동재생 차단으로
       // 꺼져 있었다면 켠다. 볼륨 버튼의 onClick(음소거 토글)이 window보다 먼저
       // 처리되므로, 버튼으로 방금 껐거나 켠 상태를 이 리스너가 뒤집지 않는다.
       resumeIfAutoMuted();
     };
     const onTouch = (e: TouchEvent) => {
-      if (e.touches.length > 0) fireMiniRipple(e.touches[0].clientX, e.touches[0].clientY);
+      ensureAudioGraph();
+      if (e.touches.length > 0) {
+        const touch = e.touches[0];
+        lastTouch.current = { t: Date.now(), x: touch.clientX, y: touch.clientY };
+        fireMiniRipple(touch.clientX, touch.clientY);
+      }
     };
     window.addEventListener("click", onClick, { passive: true });
     window.addEventListener("touchstart", onTouch, { passive: true });
@@ -230,13 +255,15 @@ function HomeInner() {
     el?.focus({ preventScroll: true });
   }, []);
 
-  const pages = [
+  // 요소를 메모이즈해 HomeInner가 리렌더돼도(볼륨 버튼, 힌트 등) 열린 섹션의
+  // 서브트리 전체가 재조정되지 않게 한다. 언어 전환은 컨텍스트라 그대로 전파된다.
+  const pages = useMemo(() => [
     <AboutSection    key="about"    />,
     <PerkSection     key="perk"     />,
     <ProjectsSection key="projects" onExternalNav={muteForExternalNav} />,
     <HobbySection    key="hobby"    />,
     <GallerySection  key="gallery"  />,
-  ];
+  ], [muteForExternalNav]);
 
   return (
     <motion.div

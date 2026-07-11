@@ -9,6 +9,13 @@ export type VolumeState = "full" | "off";
 const FADE_MS = 800;
 const FADE_STEPS = 20;
 
+function createAudioCtx(): AudioContext {
+  const Ctor =
+    window.AudioContext ||
+    (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+  return new Ctor();
+}
+
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -99,16 +106,10 @@ export function useBgmPlayer() {
     }
   }, [clearFadeTimers, currentEffectiveGain, normalizePlaybackRate, setGain]);
 
-  /** 첫 사용자 인터랙션에서 Web Audio 그래프를 지연 생성/재개한다. */
-  const ensureAudioGraph = useCallback(() => {
-    if (audioCtxRef.current) {
-      if (audioCtxRef.current.state === "suspended") audioCtxRef.current.resume();
-      return;
-    }
+  /** 오디오 엘리먼트를 GainNode 그래프에 물린다. 컨텍스트는 호출부가 준비한다. */
+  const buildAudioGraph = useCallback((ctx: AudioContext) => {
     const audio = audioRef.current;
-    if (!audio) return;
-    const ctx = new (window.AudioContext ||
-      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+    if (!audio) return false;
     const gain = ctx.createGain();
     gain.gain.value = volumeStateRef.current === "off" ? 0 : lastGainRef.current;
     const source = ctx.createMediaElementSource(audio);
@@ -118,9 +119,37 @@ export function useBgmPlayer() {
     try { audio.volume = 1; } catch {}
     audioCtxRef.current = ctx;
     gainNodeRef.current = gain;
-    ctx.resume();
-    if (volumeStateRef.current === "off") audio.pause();
+    return true;
   }, []);
+
+  /**
+   * 자동재생이 허용된 환경이면 첫 사용자 제스처를 기다리지 않고 그래프를 미리 만든다.
+   * 재생 '중'에 createMediaElementSource로 출력을 갈아끼우면 소리가 순간 끊기고,
+   * AudioContext 생성 비용이 첫 클릭 프레임의 랙에 더해지기 때문에 재생 시작 전에 만든다.
+   * 정책상 잠긴(suspended) 컨텍스트에 물리면 소리가 아예 안 나므로, 그 경우엔 닫고
+   * 기존대로 첫 제스처(ensureAudioGraph)에 맡긴다 — 그때는 어차피 재생 전이라 안 끊긴다.
+   */
+  const tryEagerAudioGraph = useCallback(() => {
+    if (audioCtxRef.current || !audioRef.current) return;
+    try {
+      const ctx = createAudioCtx();
+      if (ctx.state === "running") buildAudioGraph(ctx);
+      else ctx.close();
+    } catch {}
+  }, [buildAudioGraph]);
+
+  /** 첫 사용자 인터랙션에서 Web Audio 그래프를 지연 생성/재개한다. */
+  const ensureAudioGraph = useCallback(() => {
+    if (audioCtxRef.current) {
+      if (audioCtxRef.current.state === "suspended") audioCtxRef.current.resume();
+      return;
+    }
+    if (!audioRef.current) return;
+    const ctx = createAudioCtx();
+    if (!buildAudioGraph(ctx)) return;
+    ctx.resume();
+    if (volumeStateRef.current === "off") audioRef.current.pause();
+  }, [buildAudioGraph]);
 
   /**
    * play() 실패 처리: 자동재생 차단(NotAllowedError)일 때만 음소거로 전환한다.
@@ -288,10 +317,13 @@ export function useBgmPlayer() {
       .then(({ files }: { files: string[] }) => {
         if (!files?.length) return;
         listRef.current = shuffle(files);
+        // 자동재생이 허용된 환경이면 재생 시작 전에 그래프를 만들어 둔다
+        // (첫 클릭에서 재생 중 경로 교체로 생기던 순간 끊김 방지)
+        tryEagerAudioGraph();
         playTrack(0);
       })
       .catch(() => {});
-  }, [playTrack]);
+  }, [playTrack, tryEagerAudioGraph]);
 
   useEffect(() => clearFadeTimers, [clearFadeTimers]);
 
