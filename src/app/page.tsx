@@ -74,7 +74,8 @@ function HomeInner() {
   const [hintOn, setHintOn]               = useState(false);
 
   const {
-    audioRef, volumeState, cycleVolume, skipToNextTrack, ensureAudioGraph, resumeIfAutoMuted, onTrackEnded,
+    audioRef, volumeState, cycleVolume, skipToNextTrack, ensureAudioGraph, resumeIfAutoMuted,
+    muteForExternalNav, onTrackEnded,
   } = useBgmPlayer();
 
   // ── 롱프레스(곡 넘김) / 클릭(볼륨 토글) ───────────────────────────
@@ -232,7 +233,7 @@ function HomeInner() {
   const pages = [
     <AboutSection    key="about"    />,
     <PerkSection     key="perk"     />,
-    <ProjectsSection key="projects" />,
+    <ProjectsSection key="projects" onExternalNav={muteForExternalNav} />,
     <HobbySection    key="hobby"    />,
     <GallerySection  key="gallery"  />,
   ];

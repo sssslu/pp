@@ -35,9 +35,22 @@ export const en: Translations = {
   },
 
   projects: {
+    featuredBadge: "FEATURED",
+    visit: "Visit",
+    featured: [
+      {
+        title: "FreeHWP",
+        description:
+          "A free tool to read and edit HWP (Hangul) and PDF files — with various office features built in.",
+        url: "https://freehwp.com",
+      },
+      {
+        title: "Feed the Black Hole",
+        description: "Feed the black hole to support slu. A beautiful sponsorship page.",
+        url: "https://sleekmoodkr.com",
+      },
+    ],
     descriptions: {
-      "FreeHWP":
-        "A free tool to read and edit HWP (Hangul) and PDF files. Site: freehwp.com",
       "nbidiaGLM":
         "A chatbot harness powered by an LLM served through NVIDIA.",
       "TSLAhunter":

@@ -173,6 +173,18 @@ export function useBgmPlayer() {
   }, [ensureAudioGraph, normalizePlaybackRate, setSyncedVolumeState]);
 
   /**
+   * 외부 링크로 떠날 때 호출: 다른 사이트 소리와 겹치지 않게 BGM을 끈다.
+   * 사용자가 직접 끈 게 아니므로, 돌아와서 화면을 클릭하면 resumeIfAutoMuted가
+   * 다시 켤 수 있다. 호출부는 클릭 이벤트의 전파를 끊어야 한다 —
+   * 같은 클릭이 window의 재생 동의 리스너에 닿으면 즉시 되살아난다.
+   */
+  const muteForExternalNav = useCallback(() => {
+    if (volumeStateRef.current === "off") return;
+    mutedByUserRef.current = false;
+    setSyncedVolumeState("off");
+  }, [setSyncedVolumeState]);
+
+  /**
    * 화면 어딘가를 터치(클릭)한 것을 재생 동의로 간주한다:
    * 자동재생 차단 때문에 꺼져 있으면 다시 켠다. 사용자가 볼륨 버튼으로
    * 직접 껐다면 그 선택을 존중해 아무것도 하지 않는다.
@@ -290,6 +302,7 @@ export function useBgmPlayer() {
     skipToNextTrack,
     ensureAudioGraph,
     resumeIfAutoMuted,
+    muteForExternalNav,
     onTrackEnded,
   };
 }

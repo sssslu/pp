@@ -5,6 +5,13 @@ export interface EduLine4 { before: string; after: string }
 export interface EduLine5 { before: string; between: string; after: string }
 
 export interface ExpLine1 { before: string; mid1: string; mid2: string; after: string }
+
+/** 최상단 홍보 카드용 프로젝트 — 클릭 시 새 탭으로 url을 연다 */
+export interface FeaturedProject {
+  title: string;
+  description: string;
+  url: string;
+}
 export interface ExpLine3 { before: string; mid1: string; mid2: string; mid3: string; after: string }
 export interface ExpLine4 { before: string; mid: string; after: string }
 export interface ExpLine5 { before: string; mid1: string; mid2: string; after: string }
@@ -38,6 +45,12 @@ export interface Translations {
     stackTitle: string;
   };
   projects: {
+    /** 홍보 카드 배지 문구 (예: "홍보") */
+    featuredBadge: string;
+    /** 홍보 카드 하단의 이동 유도 문구 (예: "방문하기") */
+    visit: string;
+    /** 최상단 홍보 카드 목록 — 격자와 별개로 강조 렌더링된다 */
+    featured: readonly FeaturedProject[];
     descriptions: Record<string, string>;
   };
   hobby: {
@@ -87,9 +100,22 @@ export const ko: Translations = {
   },
 
   projects: {
+    featuredBadge: "한번 써보세요!",
+    visit: "방문하기",
+    featured: [
+      {
+        title: "FreeHWP",
+        description:
+          "한글(HWP)과 PDF를 무료로 읽고 편집할 수 있는 툴입니다. 여러가지 오피스 기능들도 준비되어 있습니다.",
+        url: "https://freehwp.com",
+      },
+      {
+        title: "블랙홀 먹이주기",
+        description: "블랙홀에 먹이를 줘 slu 를 후원해주세요. 아름다운 후원페이지",
+        url: "https://sleekmoodkr.com",
+      },
+    ],
     descriptions: {
-      "FreeHWP":
-        "한글(HWP)과 PDF 를 무료로 읽고 편집할 수 있는 툴입니다. 여러가지 오피스와 기능들도 있습니다. 사이트 : freehwp.com",
       "nbidiaGLM":
         "엔비디아에서 제공하는 LLM을 사용한 챗봇 하네스입니다.",
       "TSLAhunter":
