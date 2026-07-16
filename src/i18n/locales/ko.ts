@@ -74,7 +74,7 @@ export const ko: Translations = {
   },
 
   about: {
-    educationTitle: "학력과 경력",
+    educationTitle: "경력",
     experienceTitle: "경험",
     edu: {
       line1: { before: "- ", between: " 졸업 / ", after: " 활동 및 다회 수상" },
@@ -108,6 +108,12 @@ export const ko: Translations = {
         description:
           "한글(HWP)과 PDF를 무료로 읽고 편집할 수 있는 툴입니다. 여러가지 오피스 기능들도 준비되어 있습니다.",
         url: "https://freehwp.com",
+      },
+      {
+        title: "everLae Note",
+        description:
+          "에버노트의 무료버전. 광고 없고, 결제 없고, 한도 없습니다. 요즘 만연한 구독제에 화가나서 만들었습니다.",
+        url: "https://everlae.app",
       },
       {
         title: "블랙홀 먹이주기",

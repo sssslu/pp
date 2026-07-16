@@ -45,6 +45,12 @@ export const en: Translations = {
         url: "https://freehwp.com",
       },
       {
+        title: "everLae Note",
+        description:
+          "A free version of Evernote. No ads, no payments, no limits. Built out of frustration with today's subscription-everything trend.",
+        url: "https://everlae.app",
+      },
+      {
         title: "Feed the Black Hole",
         description: "Feed the black hole to support slu. A beautiful sponsorship page.",
         url: "https://sleekmoodkr.com",
