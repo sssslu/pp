@@ -30,13 +30,16 @@ const MINI_RIPPLE_MIN_MS = 160;
 /** 터치 후 이 시간(ms) 안에 오는 click은 같은 탭의 합성 click으로 보고 리플을 중복 생성하지 않는다 */
 const TOUCH_CLICK_DEDUPE_MS = 700;
 
-// 롱프레스(곡 넘김) 발견 유도 힌트: 버튼이 은은하게 glow 하며 위에 "LONG PRESS!!!"를 띄운다.
-// 한 곡을 HINT_MIN_PLAY_S 이상 들었을 때만 뜨고, 한 번이라도 롱프레스하면 이후로 안 뜬다.
-const HINT_FIRST_MS    = 4000;  // 첫 확인까지 (실질 타이밍은 재생 시간 게이트가 결정)
-const HINT_INTERVAL_MS = 26000; // 힌트 노출 후 다음 노출까지
-const HINT_RETRY_MS    = 3000;  // 재생 시간 조건 미충족 시 재확인 간격
-const HINT_DURATION_MS = 2200;  // glow + 텍스트 노출 시간
-const HINT_MIN_PLAY_S  = 10;    // 한 곡을 이만큼(초) 들어야 힌트 노출
+// 롱프레스(곡 넘김) 발견 유도: 유령 손가락이 버튼을 꾹 누르는 시연 —
+// 버튼이 눌리며 실제 롱프레스와 같은 링이 노랗게 차오르고, 완성되는 순간
+// "LONG PRESS!" 라벨이 튀어나온다. 음악이 실제로 나오는 중일 때만 보여주고,
+// 한 번이라도 롱프레스하면 이후로 안 뜬다.
+const HINT_FIRST_MS    = 5000;  // 첫 확인까지 (실질 타이밍은 재생 시간 게이트가 결정)
+const HINT_INTERVAL_MS = 22000; // 시연 후 다음 시연까지
+const HINT_RETRY_MS    = 2000;  // 재생 조건 미충족 시 재확인 간격
+const HINT_DURATION_MS = 3300;  // 시연 전체 길이 (누름 → 링 채움 → 라벨 → 페이드)
+const HINT_MIN_PLAY_S  = 6;     // 한 곡을 이만큼(초) 들어야 시연 시작
+const HINT_MAX_SHOWS   = 6;     // 세션당 시연 상한 — 발견 못 해도 이 이상 조르지 않는다
 const HINT_STORAGE_KEY = "bgm-longpress-discovered";
 
 // ── 아이콘 ────────────────────────────────────────────────────────────
@@ -131,26 +134,32 @@ function HomeInner() {
     cycleVolume();
   }, [cycleVolume]);
 
-  // ── 롱프레스 유도 힌트 ──────────────────────────────────────────────
-  // 한 곡을 10초 이상 들었을 때만, 버튼이 은은하게 glow 하며 위에 "LONG PRESS!!!"를 띄운다.
-  // 아직 10초를 못 들었으면 짧게 재확인하고, 한 번이라도 롱프레스했다면 더는 뜨지 않는다.
+  // ── 롱프레스 유도 시연 ──────────────────────────────────────────────
+  // 음악이 실제로 나오는 중이고(음소거·정지면 무의미) 한 곡을 어느 정도 들었을 때만,
+  // 버튼이 스스로 눌리는 시연을 보여준다. 발견(실제 롱프레스)하면 영구히 그만두고,
+  // 발견하지 못해도 세션당 HINT_MAX_SHOWS번까지만 조른다.
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
+    let shown = 0;
     let loopTimer: ReturnType<typeof setTimeout>;
     let hideTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const tick = (): number => {
-      if (discovered.current || document.hidden) return HINT_INTERVAL_MS;
-      // 현재 곡을 충분히 듣지 않았으면 힌트를 미루고 곧 다시 확인한다
-      if ((audioRef.current?.currentTime ?? 0) < HINT_MIN_PLAY_S) return HINT_RETRY_MS;
+    const tick = (): number | null => {
+      if (discovered.current || shown >= HINT_MAX_SHOWS) return null; // 시연 종료
+      if (document.hidden) return HINT_INTERVAL_MS;
+      const audio = audioRef.current;
+      // 음악이 실제로 재생 중일 때만 — paused는 음소거/차단/로드 전 모두 커버한다
+      if (!audio || audio.paused || audio.currentTime < HINT_MIN_PLAY_S) return HINT_RETRY_MS;
+      shown++;
       setHintOn(true);
       hideTimer = setTimeout(() => setHintOn(false), HINT_DURATION_MS);
       return HINT_INTERVAL_MS;
     };
 
     const run = () => {
-      loopTimer = setTimeout(run, tick());
+      const next = tick();
+      if (next !== null) loopTimer = setTimeout(run, next);
     };
     loopTimer = setTimeout(run, HINT_FIRST_MS);
 
@@ -294,8 +303,19 @@ function HomeInner() {
         onTouchCancel={handlePressEnd}
         onContextMenu={(e) => e.preventDefault()}
         aria-label="Cycle volume (hold to skip track)"
-        animate={pressing ? { scale: 0.88 } : { scale: 1 }}
-        transition={{ duration: 0.15 }}
+        // 시연 중엔 유령 손가락이 누르는 것처럼 살짝 눌렸다가, 링이 완성되면 톡 튀어오른다
+        animate={
+          pressing
+            ? { scale: 0.88 }
+            : hintOn
+              ? { scale: [1, 0.9, 0.9, 1.07, 1] }
+              : { scale: 1 }
+        }
+        transition={
+          !pressing && hintOn
+            ? { duration: HINT_DURATION_MS / 1000, times: [0, 0.08, 0.41, 0.47, 0.53], ease: "easeInOut" }
+            : { duration: 0.15 }
+        }
         className={`fixed right-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] md:right-8 md:bottom-8 z-50 flex items-center justify-center w-14 h-14 rounded-xl border-2 transition-[background-color,border-color,box-shadow] duration-300 backdrop-blur-md select-none touch-none ${VOLUME_BTN[volumeState]}`}
       >
         {volumeState === "full" ? <MusicOnIcon /> : <MusicOffIcon />}
@@ -317,25 +337,52 @@ function HomeInner() {
           </svg>
         )}
 
-        {/* 발견 유도 힌트: 은은한 노란 glow + 위에 "LONG PRESS!!!" 텍스트 */}
-        {hintOn && (
+        {/* 발견 유도 시연: 실제 롱프레스와 같은 링이 노랗게 저절로 차오르고,
+            완성되는 순간 "LONG PRESS!" 라벨이 튀어나온다 — 버튼이 스스로 사용법을 보여준다 */}
+        {hintOn && !pressing && (
           <>
+            {/* 유령 진행 링 (.ring-press와 같은 궤적, 호박색) */}
+            <svg viewBox="0 0 56 56" className="absolute inset-0 w-full h-full pointer-events-none">
+              <motion.rect
+                x="1.5" y="1.5" width="53" height="53" rx="11"
+                fill="none"
+                stroke="rgba(250,204,21,0.9)"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                pathLength={100}
+                strokeDasharray="100"
+                initial={{ strokeDashoffset: 100, opacity: 0 }}
+                animate={{ strokeDashoffset: [100, 100, 0, 0], opacity: [0, 0.9, 0.9, 0] }}
+                transition={{ duration: HINT_DURATION_MS / 1000, times: [0, 0.08, 0.41, 0.55], ease: "easeInOut" }}
+              />
+            </svg>
+            {/* 링이 차오르는 동안의 은은한 호박색 글로우 */}
             <motion.span
               aria-hidden
               className="absolute inset-0 rounded-xl pointer-events-none"
-              style={{ boxShadow: "0 0 16px 3px rgba(250,204,21,0.5), inset 0 0 10px rgba(250,204,21,0.25)" }}
+              style={{ boxShadow: "0 0 16px 3px rgba(250,204,21,0.45), inset 0 0 10px rgba(250,204,21,0.2)" }}
               initial={{ opacity: 0 }}
               animate={{ opacity: [0, 1, 1, 0] }}
-              transition={{ duration: HINT_DURATION_MS / 1000, times: [0, 0.25, 0.7, 1], ease: "easeInOut" }}
+              transition={{ duration: HINT_DURATION_MS / 1000, times: [0, 0.1, 0.45, 0.6], ease: "easeInOut" }}
             />
+            {/* 링 완성 순간 튀어나오는 라벨: 뭘 하면(LONG PRESS) 뭐가 되는지(NEXT BGM) */}
             <motion.span
               aria-hidden
-              className="absolute bottom-full right-0 mb-2 whitespace-nowrap text-[11px] font-bold tracking-[0.2em] text-yellow-300 drop-shadow-[0_0_6px_rgba(250,204,21,0.85)] pointer-events-none select-none"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: [0, 1, 1, 0] }}
-              transition={{ duration: HINT_DURATION_MS / 1000, times: [0, 0.25, 0.7, 1], ease: "easeInOut" }}
+              className="absolute bottom-full right-0 mb-2 flex flex-col items-end gap-0.5 pointer-events-none select-none"
+              initial={{ opacity: 0, y: 6, scale: 0.7 }}
+              animate={{
+                opacity: [0, 0, 1, 1, 0],
+                y: [6, 6, 0, 0, -4],
+                scale: [0.7, 0.7, 1, 1, 0.96],
+              }}
+              transition={{ duration: HINT_DURATION_MS / 1000, times: [0, 0.4, 0.47, 0.88, 1], ease: "easeOut" }}
             >
-              LONG PRESS!!!
+              <span className="whitespace-nowrap text-[12px] font-bold tracking-[0.2em] text-yellow-300 drop-shadow-[0_0_6px_rgba(250,204,21,0.85)]">
+                LONG PRESS!
+              </span>
+              <span className="whitespace-nowrap text-[10px] font-semibold tracking-[0.15em] text-yellow-200/80">
+                ⏭ NEXT BGM
+              </span>
             </motion.span>
           </>
         )}
