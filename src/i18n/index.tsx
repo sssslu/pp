@@ -28,6 +28,11 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     setLocaleState(lang.startsWith("ko") ? "ko" : "en");
   }, []);
 
+  // <html lang>을 실제 표시 언어와 일치시킨다 (SSR 기본값은 layout의 ko)
+  useEffect(() => {
+    document.documentElement.lang = locale;
+  }, [locale]);
+
   const setLocale = (l: Locale) => {
     setLocaleState(l);
     localStorage.setItem("lang", l);
