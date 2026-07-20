@@ -172,7 +172,7 @@ function HomeInner() {
   // ── 조회수 ────────────────────────────────────────────────────────
   useEffect(() => {
     const controller = new AbortController();
-    fetch("https://wick-ribbon-player.ngrok-free.dev/sphere/viewcount/1", {
+    fetch("https://wick-ribbon-player.ngrok-free.dev/pp/viewcount/1", {
       signal: controller.signal,
       // ngrok 무료 도메인의 브라우저 경고 페이지 우회 (값은 아무거나)
       headers: { "ngrok-skip-browser-warning": "1" },
