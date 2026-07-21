@@ -58,6 +58,12 @@ export interface Translations {
     freedivingContent: string;
     artTitle: string;
     artContent: string;
+    /** 사진 주석: 다이버(본인) 이름 라벨 */
+    diverLabel: string;
+    /** 사진 주석: 고래 종 라벨 */
+    whaleLabel: string;
+    /** 고래 사진 img alt */
+    photoAlt: string;
   };
   contact: {
     title: string;
@@ -178,6 +184,9 @@ export const ko: Translations = {
 - 2026 KUA 국가대표선발전 수중심판으로 활동하였음.`,
     artTitle: "그림 및 아트웍, 디자인",
     artContent: "예술적인 감각이 있습니다!! (본인 주장, 경력 없음, 갤러리 참조)",
+    diverLabel: "me!",
+    whaleLabel: "향유고래",
+    photoAlt: "향유고래와 나란히 유영하는 프리다이버(본인) — 수중에서 촬영",
   },
 
   contact: {

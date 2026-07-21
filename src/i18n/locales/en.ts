@@ -111,6 +111,9 @@ having certified 100+ Korean and foreign students.
 - Served as underwater referee at the 2026 KUA National Team Selection Tournament.`,
     artTitle: "Drawing, Artwork & Design",
     artContent: "I have artistic sensibility!! (self-claimed, no formal credentials — see Gallery)",
+    diverLabel: "me!",
+    whaleLabel: "sperm whale",
+    photoAlt: "A freediver (me) swimming alongside a sperm whale — shot underwater",
   },
 
   contact: {
