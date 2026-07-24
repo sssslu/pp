@@ -51,6 +51,12 @@ export const en: Translations = {
         url: "https://everlae.app",
       },
       {
+        title: "RallyMaster",
+        description:
+          "A web app for studying badminton doubles rotation. Also released as a mobile app.",
+        url: "https://www.rallymaster.app",
+      },
+      {
         title: "Feed the Black Hole",
         description: "Feed the black hole to support slu. A beautiful sponsorship page.",
         url: "https://sleekmoodkr.com",

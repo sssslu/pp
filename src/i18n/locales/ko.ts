@@ -122,6 +122,12 @@ export const ko: Translations = {
         url: "https://everlae.app",
       },
       {
+        title: "랠리마스터",
+        description:
+          "배드민턴 복식 로테이션을 공부할 수 있는 웹앱입니다. 모바일 앱으로도 출시되어 있습니다.",
+        url: "https://www.rallymaster.app",
+      },
+      {
         title: "블랙홀 먹이주기",
         description: "블랙홀에 먹이를 줘 slu 를 후원해주세요. 아름다운 후원페이지",
         url: "https://sleekmoodkr.com",
