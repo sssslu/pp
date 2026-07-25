@@ -81,6 +81,26 @@ const jsonLd = {
       email: "mailto:slu@kakao.com",
       jobTitle: "Software Developer",
       knowsLanguage: ["ko", "en"],
+      alumniOf: { "@id": "https://slupark.com/#seoultech" },
+      // 인물 엔티티를 외부 프로필과 잇는 고리 — 구글이 "이 사람"의 동일성을
+      // 사이트 밖에서도 확인할 수 있게 한다. 저장소 안에 실제로 존재하는 링크만 넣었다
+      // (AboutSection의 유튜브 채널). 채널 하위 탭(/shorts)은 떼어 정규 주소로 맞췄다.
+      //
+      // sameAs는 '엔티티의 정체를 확인해 주는 참조 페이지'(공식 사이트·소셜 프로필·위키데이터)
+      // 전용이다. 인프런 강의 주소는 사람의 프로필이 아니라 상품 페이지라 제외했다 —
+      // 정체성과 무관한 링크를 섞으면 엔티티 신호가 희석된다.
+      // GitHub/LinkedIn 주소는 저장소 어디에도 없어 비워 둔다 — 생기면 여기에 추가한다.
+      sameAs: [
+        "https://www.youtube.com/@%EA%B3%BC%ED%95%99%EC%AA%BC%EA%B0%80%EB%A6%AC",
+      ],
+    },
+    {
+      // AboutSection·i18n 캡션에 이미 있는 학력 사실을 엔티티로만 승격한다.
+      // 이름은 저장소에 실재하는 표기 그대로 쓴다 (ko.ts / en.ts의 school-seoultech).
+      "@type": "EducationalOrganization",
+      "@id": "https://slupark.com/#seoultech",
+      name: "서울과학기술대학교",
+      alternateName: "Seoul National University of Science and Technology",
     },
     {
       "@type": "WebSite",

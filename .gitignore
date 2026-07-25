@@ -13,3 +13,13 @@
 
 # local
 .env.local
+
+# editor
+/.idea/
+/.vscode/
+
+# typescript
+*.tsbuildinfo
+
+# flutter 시절 잔재 — Next는 public/만 정적 서빙하므로 루트 icons/는 어디로도 닿지 않는다
+/icons/

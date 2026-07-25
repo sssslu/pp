@@ -4,8 +4,10 @@
  *
  * 새 곡 추가 방법:
  *  1. public/bgm/에 파일을 넣는다.
- *  2. 아래 TRACKS에 항목 하나를 추가한다 (키는 확장자를 뺀 파일명 소문자).
- *     등록이 없으면 DEFAULT_TRACK(랜덤 도형, gain 1)으로 재생된다.
+ *  2. 아래 TRACK_FILES에 파일명(확장자 포함)을, TRACKS에 설정 한 줄을 추가한다
+ *     (TRACKS의 키는 확장자를 뺀 파일명 소문자).
+ *     TRACK_FILES에 없으면 재생 목록에 아예 오르지 않고,
+ *     TRACKS에 등록이 없으면 DEFAULT_TRACK(랜덤 도형, gain 1)으로 재생된다.
  *  3. gain 측정: public/bgm/에서 아래 명령을 실행해 "input_i"(통합 LUFS)를 읽고,
  *       ffmpeg -hide_banner -i <파일> -af loudnorm=print_format=json -f null -
  *     gain = 10^((-14 - input_i) / 20)  (타깃 -14 LUFS, 스트리밍 표준)
@@ -22,8 +24,6 @@ export interface TrackConfig extends VisualTheme {
 
 /** 전체 마스터 볼륨. BASE_GAIN × gain ≤ 1.0 이어야 클리핑이 없다 */
 export const BASE_GAIN = 0.3;
-
-export const TARGET_LUFS = -14;
 
 /** 미등록 곡의 기본값 */
 export const DEFAULT_TRACK: TrackConfig = {
@@ -45,6 +45,27 @@ export const TRACKS: Record<string, TrackConfig> = {
   // 요구사항: 7번 곡은 블랙홀(Gargantua) 고정 — 장면 자체가 고정 팔레트라 색은 참고값
   bgm7: { bg: "#05060a", shapeColor: "#f59a34", rippleColor: "#ffbe6e", shapeId: "blackHole", gain: 1.48 },
 };
+
+/**
+ * 실제 재생 목록 (public/bgm/ 기준, 확장자 포함).
+ *
+ * 예전엔 /api/bgm 라우트가 서버에서 폴더를 읽었다. 그런데 그 라우트는 정적 라우트라
+ * 빌드 때 딱 한 번 실행돼 결과가 그대로 구워졌다 — 파일을 넣어도 재배포 전엔 반영되지
+ * 않았다는 뜻이다. 어차피 배포 단위로 고정되는 값이면 TRACKS 옆에 두는 편이 정직하고,
+ * 첫 화면에서 네트워크 왕복 하나가 조용히 실패해 트랙 0개로 BGM과 시각 테마가 통째로
+ * 죽던 경로도 사라진다.
+ *
+ * TRACKS의 키는 확장자를 뗀 이름이라 확장자 정보를 담지 못한다 — 그래서 목록이 따로 있다.
+ */
+export const TRACK_FILES: readonly string[] = [
+  "bgm1.mp3",
+  "bgm2.m4a",
+  "bgm3.m4a",
+  "bgm4.m4a",
+  "bgm5.mp3",
+  "bgm6.mp3",
+  "bgm7.mp3",
+];
 
 export function getTrackConfig(fileName: string): TrackConfig {
   const key = fileName.toLowerCase().replace(/\.[^.]+$/, "");

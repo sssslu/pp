@@ -8,18 +8,13 @@ import {
   randomRotation,
   projectShape,
   type Segment,
+  type SceneRenderer,
+  type SceneShape,
   type ShapeDef,
   type ShapeId,
+  type WireframeShape,
 } from "@/lib/ascii/shapes";
 import { onVisualTheme, onRipple } from "@/lib/ascii/events";
-import {
-  seedGargantua,
-  seedStars,
-  seedNebulas,
-  drawGargantuaScene,
-  type Star,
-  type Nebula,
-} from "@/lib/ascii/gargantua";
 import { DEFAULT_TRACK } from "@/lib/bgmTracks";
 
 /**
@@ -55,6 +50,13 @@ const TILE_CELLS          = 64;
 const NOISE_TILE_VARIANTS = 5;
 const GLYPH_TILE_VARIANTS = 3;
 const COLOR_FADE_MS       = 450;
+
+/**
+ * 백업 비트맵의 dpr 상한. dpr 3이면 타일 한 장이 1152²×4B ≈ 5.1MiB라 상시 캐시(11장)만
+ * 55MiB를 먹고, 메인 캔버스도 dpr 2 대비 픽셀이 2.25배가 된다. 6px 글자를 알파 0.06~0.4로
+ * 깔아 두는 노이즈라 2를 넘겨서 얻는 게 없다. (HobbySection의 소나 캔버스도 같은 상한)
+ */
+const MAX_DPR = 2;
 
 interface Ripple {
   x: number;
@@ -112,7 +114,12 @@ export default function AsciiBackground() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    /**
+     * 모션 축소 모드. 예전엔 여기서 곧장 return했는데, 그러면 사이징도 그리기도 하지 않아
+     * 배경이 통째로 빈 검은 화면이 됐다 — 정지 화면 한 장은 '모션'이 아니다.
+     * 루프·깜빡임·리플만 끄고 첫 프레임 한 장은 그린다.
+     */
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     let bgColor = DEFAULT_TRACK.bg;
     let shapeColor = DEFAULT_TRACK.shapeColor;
@@ -128,14 +135,13 @@ export default function AsciiBackground() {
     let activeShape: ShapeDef = SHAPE_REGISTRY[activeShapeId];
     let rotation = randomRotation();
 
-    // 블랙홀(Gargantua) 배경의 별가루·성운. 리사이즈 때 dirty로 표시만 하고,
-    // 실제 씨딩은 블랙홀이 그려지는 프레임에서만 한다 — 다른 테마 중의 리사이즈
-    // 폭주(모바일 주소창 등)에 ~1200개 객체를 헛되이 만들지 않기 위함.
-    let stars: Star[] = [];
-    let nebulas: Nebula[] = [];
-    let starsDirty = true;
-    // 강착원반/헤일로/광자 링/가루 입자는 R 단위라 한 번만 생성한다 (리사이즈 무관).
-    const gargantua = seedGargantua();
+    // 장면 도형(블랙홀 등)의 렌더러. 리사이즈 때는 dirty로 표시만 하고, 실제 씨딩은
+    // 그 장면이 그려지는 프레임에서만 한다 — 다른 테마 중의 리사이즈 폭주(모바일 주소창 등)에
+    // 쓰이지도 않을 별가루 ~1200개를 만들지 않기 위함.
+    // 도형이 바뀌어도 seed 함수가 같으면 렌더러를 그대로 재사용한다(별가루가 다시 뿌려지지 않는다).
+    let sceneRenderer: SceneRenderer | null = null;
+    let sceneSeed: SceneShape["seed"] | null = null;
+    let sceneDirty = true;
 
     const setShape = (id: ShapeId | "random") => {
       const next = id === "random" ? randomShapeId(activeShapeId) : id;
@@ -165,6 +171,7 @@ export default function AsciiBackground() {
     let warmId: number | null = null;
     let warmIsIdle = false;
     const warmRipplePatterns = () => {
+      if (reduceMotion) return;    // 리플을 아예 받지 않으므로 미리 구울 이유도 없다
       if (warmId !== null) return; // 이미 예약됨 — 실행 시점의 최신 rippleColor를 굽는다
       const build = () => {
         warmId = null;
@@ -220,9 +227,10 @@ export default function AsciiBackground() {
     };
 
     const resize = () => {
-      const nextDpr = window.devicePixelRatio || 1;
+      const nextDpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
       // 크기·dpr이 그대로면 아무것도 안 한다 — canvas.width 대입만으로도 비트맵이
       // 리셋되므로, 중복 resize 이벤트(모바일 브라우저 등)에서 헛일을 막는다.
+      // (클램프한 값으로 비교하므로 3↔2.5 같은 상한 위의 변화엔 캐시도 버리지 않는다)
       if (nextDpr === dpr && window.innerWidth === viewW && window.innerHeight === viewH) return;
       if (nextDpr !== dpr) {
         dpr = nextDpr;
@@ -234,13 +242,14 @@ export default function AsciiBackground() {
       canvas.height = Math.round(viewH * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       centerShapeRadius = Math.min(CENTER_SHAPE_MAX, Math.max(CENTER_SHAPE_MIN, viewW * CENTER_SHAPE_RATIO)) / 2;
-      starsDirty = true;
+      sceneDirty = true;
       updatePatternMatrix();
       warmRipplePatterns();
     };
 
     const offTheme = onVisualTheme((theme) => {
-      if (theme.bg !== bgColor && theme.transition) {
+      // 크로스페이드는 rAF 루프가 있어야 성립하는 연출이다 — 모션 축소 모드에선 즉시 교체한다
+      if (theme.bg !== bgColor && theme.transition && !reduceMotion) {
         prevBgColor = bgColor;
         fadeStart = performance.now();
       } else if (theme.bg !== bgColor) {
@@ -252,10 +261,14 @@ export default function AsciiBackground() {
       setShape(theme.shapeId);
       warmRipplePatterns();
       scheduleEvict();
+      // 루프가 없는 모드에선 여기서 한 장만 다시 그린다 (안 그리면 첫 곡 색에 영구히 멈춘다)
+      if (reduceMotion) paintStatic();
     });
 
     const ripples: Ripple[] = [];
-    const offRipple = onRipple((detail) => {
+    // 모션 축소 모드에선 리플을 아예 구독하지 않는다 — 그리지도 않을 리플이 쌓이면
+    // evict가 그 색의 글리프 타일을 계속 살려 둬 캐시만 붙잡는다.
+    const offRipple = reduceMotion ? () => {} : onRipple((detail) => {
       // 상한 초과 시 가장 오래된 리플을 버린다 (정상 사용에선 도달하지 않는 안전망)
       if (ripples.length >= MAX_RIPPLES) ripples.shift();
       const band = detail.band ?? (detail.thin ? RIPPLE_BAND_THIN : RIPPLE_BAND_THICK);
@@ -320,10 +333,10 @@ export default function AsciiBackground() {
       ctx.fillRect(0, 0, viewW, viewH);
     };
 
-    const strokeShape = (time: number) => {
-      const radius = centerShapeRadius * (activeShape.scale ?? 1);
+    const strokeShape = (shape: WireframeShape, time: number) => {
+      const radius = centerShapeRadius * (shape.scale ?? 1);
       const { main, accent } = projectShape(
-        activeShape, time, viewW / 2, viewH / 2, radius, rotation,
+        shape, time, viewW / 2, viewH / 2, radius, rotation,
       );
       const glyphPatterns = getPatterns("glyph", shapeColor);
       const pattern = glyphPatterns[tileIdx % glyphPatterns.length];
@@ -344,7 +357,7 @@ export default function AsciiBackground() {
         }
         ctx.stroke();
       };
-      strokeSegments(main, baseW * (activeShape.edgeScale ?? 1));
+      strokeSegments(main, baseW * (shape.edgeScale ?? 1));
       strokeSegments(accent, baseW * 0.85);
     };
 
@@ -379,25 +392,30 @@ export default function AsciiBackground() {
 
     const draw = (now: number) => {
       const time = now / 1000;
-      if (activeShape.gargantua) {
+      // 유니온 좁히기가 클로저 밖 let에는 유지되지 않으므로 지역 상수로 받는다
+      const shape = activeShape;
+      if (shape.kind === "scene") {
         // 씨딩은 실제로 그려지는 첫 프레임으로 미룬다 (리사이즈 낭비 방지)
-        if (starsDirty) {
-          stars = seedStars(viewW, viewH);
-          nebulas = seedNebulas(viewW, viewH);
-          starsDirty = false;
+        if (!sceneRenderer || sceneSeed !== shape.seed || sceneDirty) {
+          sceneRenderer = shape.seed(viewW, viewH);
+          sceneSeed = shape.seed;
+          sceneDirty = false;
         }
-        // 블랙홀은 자체 우주 배경(성운·별가루·별똥별)을 포함해 고정 팔레트로 그린다.
-        // 장면이 캔버스 전체를 불투명하게 덮으므로 clearRect가 필요 없다.
-        drawGargantuaScene(ctx, viewW, viewH, now, gargantua, stars, nebulas);
+        // 장면은 자체 배경(블랙홀이면 성운·별가루·별똥별)까지 고정 팔레트로 그려 캔버스 전체를
+        // 불투명하게 덮으므로 clearRect가 필요 없다.
+        sceneRenderer(ctx, viewW, viewH, now);
       } else {
         ctx.clearRect(0, 0, viewW, viewH);
         fillBackground(now);
-        strokeShape(time);
+        strokeShape(shape, time);
       }
       strokeRipples(time);
     };
 
-    let rafId: number;
+    /** 모션 축소 모드 전용 — 지금 상태를 한 장만 그린다 */
+    const paintStatic = () => draw(performance.now());
+
+    let rafId = 0;
     const loop = () => {
       const now = performance.now();
       updateFlicker(now);
@@ -407,11 +425,20 @@ export default function AsciiBackground() {
 
     resize();
     window.addEventListener("resize", resize, { passive: true });
-    rafId = requestAnimationFrame(loop);
+    if (reduceMotion) {
+      // 리사이즈는 canvas.width 대입으로 비트맵을 지운다 — 루프가 없으니 그때마다 직접
+      // 한 장씩 다시 그려야 배경이 사라지지 않는다. (resize 뒤에 붙어야 순서가 맞다)
+      paintStatic();
+      window.addEventListener("resize", paintStatic, { passive: true });
+    } else {
+      rafId = requestAnimationFrame(loop);
+    }
 
     return () => {
+      // rafId 0 · 등록된 적 없는 리스너 제거는 둘 다 규격상 no-op이라 분기 없이 정리한다
       cancelAnimationFrame(rafId);
       window.removeEventListener("resize", resize);
+      window.removeEventListener("resize", paintStatic);
       cancelWarm();
       if (evictId !== null) clearTimeout(evictId);
       offTheme();

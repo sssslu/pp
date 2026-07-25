@@ -1,15 +1,36 @@
 /**
- * ASCII 배경에 띄우는 3D 와이어프레임 도형 정의.
+ * ASCII 배경에 띄우는 중앙 도형 정의.
+ *
+ * 도형은 두 종류다:
+ *  - kind: "wireframe" — 정점/엣지를 회전 투영해 선분으로 그린다 (기본).
+ *  - kind: "scene"     — 캔버스 전체를 직접 그리는 전용 렌더러 (예: 블랙홀).
  *
  * 새 도형 추가 방법:
  *  1. build 함수를 만들어 ShapeDef를 반환한다 (정점은 대략 단위 구 안에 정규화).
  *  2. SHAPE_REGISTRY에 id와 함께 등록한다.
- *  3. 특정 곡에 고정하려면 bgmTracks.ts에서 shapeId로 지정한다.
+ *  3. 특정 곡 전용이면 trackOnly: true를 붙이고 bgmTracks.ts에서 shapeId로 지정한다.
+ *     안 붙이면 "random" 테마의 추첨 풀에 자동으로 들어간다.
  */
+
+import { seedGargantuaScene } from "./gargantua";
 
 export type Vec3 = [number, number, number];
 
-export interface ShapeDef {
+/** 와이어프레임·장면이 공유하는 설정 */
+interface ShapeBase {
+  /** 이 도형만의 크기 배율 */
+  scale?: number;
+  /**
+   * true면 "random" 추첨 풀에서 빠진다 — 특정 곡 전용 도형용.
+   * 예전엔 풀 쪽에서 id를 블랙리스트로 걸렀는데, 그러면 새로 만든 전용 도형이
+   * 조용히 풀에 섞였다. 제외 여부는 도형 정의 바로 옆에 둔다.
+   */
+  trackOnly?: boolean;
+}
+
+/** 정점/엣지를 회전 투영해 선분으로 그리는 도형 */
+export interface WireframeShape extends ShapeBase {
+  kind: "wireframe";
   vertices: Vec3[];
   edges: [number, number][];
   /** 굵게 강조해 그릴 엣지 */
@@ -20,16 +41,30 @@ export interface ShapeDef {
   tiltZ?: number;
   /** 이 도형만의 선 두께 배율 */
   edgeScale?: number;
-  /** 이 도형만의 크기 배율 */
-  scale?: number;
   /** true면 시점 반대편(뒤쪽) 엣지를 숨겨 입체감을 살린다 (볼록한 도형용) */
   cullBack?: boolean;
-  /**
-   * true면 와이어프레임이 아니라 AsciiBackground의 전용 렌더러(drawGargantua)가 그린다.
-   * 인터스텔라 Gargantua 풍의 중력 렌즈 블랙홀 — vertices/edges는 쓰지 않는다.
-   */
-  gargantua?: boolean;
 }
+
+/** 매 프레임 장면 전체를 그린다. seed가 만든 상태를 클로저로 들고 있다. */
+export type SceneRenderer = (
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  now: number,
+) => void;
+
+/** 캔버스를 통째로 그리는 도형 — 와이어프레임 대신 전용 렌더러를 쓴다 */
+export interface SceneShape extends ShapeBase {
+  kind: "scene";
+  /**
+   * 화면 크기에 맞춰 장면을 씨딩하고 렌더러를 돌려준다 (리사이즈 때 다시 호출).
+   * 상태를 반환값이 아니라 클로저에 가두므로, 장면마다 상태 타입이 달라도
+   * ShapeDef 유니온이 any·캐스트 없이 닫힌다.
+   */
+  seed: (w: number, h: number) => SceneRenderer;
+}
+
+export type ShapeDef = WireframeShape | SceneShape;
 
 export type ShapeId =
   | "icosahedron"
@@ -39,7 +74,7 @@ export type ShapeId =
 
 // ── 도형 빌더 ─────────────────────────────────────────────────────────
 
-function buildIcosahedron(): ShapeDef {
+function buildIcosahedron(): WireframeShape {
   const phi = (1 + Math.sqrt(5)) / 2;
   const raw: Vec3[] = [
     [0, 1, phi], [0, -1, phi], [0, 1, -phi], [0, -1, -phi],
@@ -65,14 +100,18 @@ function buildIcosahedron(): ShapeDef {
       if (Math.abs(Math.sqrt(dx * dx + dy * dy + dz * dz) - edgeLen) < 0.01) edges.push([i, j]);
     }
   }
-  return { vertices: verts, edges };
+  return { kind: "wireframe", vertices: verts, edges };
 }
 
 /**
  * 2D 외곽선을 z축으로 돌출시킨 각진 3D 와이어프레임.
  * outline은 y가 위쪽인 좌표계로 정의한다 (내부에서 화면 좌표계로 뒤집는다).
  */
-function buildExtruded(outline: [number, number][], depth: number, opts: Partial<ShapeDef> = {}): ShapeDef {
+function buildExtruded(
+  outline: [number, number][],
+  depth: number,
+  opts: Partial<Omit<WireframeShape, "kind" | "vertices" | "edges">> = {},
+): WireframeShape {
   const xs = outline.map(([x]) => x);
   const ys = outline.map(([, y]) => y);
   const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
@@ -97,11 +136,11 @@ function buildExtruded(outline: [number, number][], depth: number, opts: Partial
     edges.push([n + i, n + ((i + 1) % n)]); // 뒷면 외곽
     edges.push([i, n + i]);               // 옆면 연결선
   }
-  return { vertices, edges, ...opts };
+  return { kind: "wireframe", vertices, edges, ...opts };
 }
 
 /** THE FINALS 풍의 각진 'F' 로고 (살짝 기울어진 이탤릭) */
-function buildFinalsLogo(): ShapeDef {
+function buildFinalsLogo(): WireframeShape {
   const outline: [number, number][] = [
     [0, 0], [0, 1], [0.62, 1], [0.62, 0.78],
     [0.24, 0.78], [0.24, 0.56], [0.54, 0.56], [0.54, 0.34],
@@ -113,7 +152,7 @@ function buildFinalsLogo(): ShapeDef {
 }
 
 /** 병원 십자가(+) 3D */
-function buildHospitalCross(): ShapeDef {
+function buildHospitalCross(): WireframeShape {
   const a = 0.35;
   const outline: [number, number][] = [
     [-a, 1], [a, 1], [a, a], [1, a], [1, -a], [a, -a],
@@ -123,28 +162,24 @@ function buildHospitalCross(): ShapeDef {
   return buildExtruded(outline, 0.34, { upright: true, scale: 0.9 });
 }
 
-/**
- * 블랙홀 (인터스텔라 Gargantua). 와이어프레임이 아니라 ascii/gargantua.ts의 전용 렌더러가
- * 아스키 글리프로 그린다 — 렌즈 호가 그림자 위로 감기고, 밝은 띠가 앞을 가로지르며,
- * 아래 반원 헤일로/광자 링과 성운·별가루·별똥별 배경이 함께 깔린다.
- * 색은 트랙 테마와 무관하게 고정 팔레트. 그래서 정점/엣지는 비워 둔다.
- */
-function buildBlackHole(): ShapeDef {
-  return { vertices: [], edges: [], gargantua: true };
-}
-
 // ── 레지스트리 ────────────────────────────────────────────────────────
 
 export const SHAPE_REGISTRY: Record<ShapeId, ShapeDef> = {
   icosahedron: buildIcosahedron(),
   finalsLogo: buildFinalsLogo(),
   hospitalCross: buildHospitalCross(),
-  blackHole: buildBlackHole(),
+  /**
+   * 블랙홀 (인터스텔라 Gargantua). 와이어프레임이 아니라 ascii/gargantua.ts의 전용
+   * 렌더러가 아스키 글리프로 그린다 — 렌즈 호가 그림자 위로 감기고, 밝은 띠가 앞을
+   * 가로지르며, 아래 반원 헤일로/광자 링과 성운·별가루·별똥별 배경이 함께 깔린다.
+   * 색은 트랙 테마와 무관한 고정 팔레트이고, bgm7 전용이라 랜덤 풀에서 뺀다.
+   */
+  blackHole: { kind: "scene", seed: seedGargantuaScene, trackOnly: true },
 };
 
-/** "random" 테마에서 뽑는 풀 — 블랙홀은 bgm7 전용이라 제외한다 (곡 고정은 bgmTracks.ts에서) */
+/** "random" 테마에서 뽑는 풀 — trackOnly(곡 전용) 도형만 빠진다 */
 export const RANDOM_SHAPE_POOL: ShapeId[] = (Object.keys(SHAPE_REGISTRY) as ShapeId[]).filter(
-  (id) => id !== "blackHole",
+  (id) => !SHAPE_REGISTRY[id].trackOnly,
 );
 
 export function randomShapeId(exclude?: ShapeId): ShapeId {
@@ -202,7 +237,7 @@ const SPIN_SPEED = 1.18;
 
 /** 도형을 회전시켜 화면 좌표의 선분 목록으로 투영한다. */
 export function projectShape(
-  def: ShapeDef,
+  def: WireframeShape,
   time: number,
   cx: number,
   cy: number,

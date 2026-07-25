@@ -22,7 +22,9 @@ export const en: Translations = {
       line1: { before: "- Used ", mid1: " and automation systems to build and operate a ", mid2: ". ", after: "" },
       line2: "- Designed and deployed mobile apps for iOS and Android.",
       line3: { before: "- Maintained ", mid1: "'s library program ", mid2: " and ", mid3: "'s high-speed scanning program ", after: "." },
-      line4: { before: "- Participated in various ", mid: " at a ", after: "." },
+      // ko와 슬롯 순서가 뒤집혀 있어(ko: 장소→역할, en: 역할→장소) 같은 인자를 넣으면
+      // 의미가 달라졌다. ko 순서에 맞추고 edu.line5의 "Worked at ... in a ... role" 어투를 재사용
+      line4: { before: "- Worked at ", mid: " in various ", after: " roles." },
       line5: { before: "- Performed ", mid1: " at a ", mid2: " under ", after: "." },
       line6: { before: "- Worked as a ", after: "!" },
     },
@@ -32,6 +34,7 @@ export const en: Translations = {
     strengthsTitle: "Strengths",
     strengths: ["Creativity", "Reliability", "Fluent in English / Korean"],
     stackTitle: "Stack",
+    dbSkill: "SQL & CRUD (DB)",
   },
 
   projects: {
@@ -125,5 +128,81 @@ having certified 100+ Korean and foreign students.
   contact: {
     title: "Contact",
     copiedPrefix: "Contact Copied! : ",
+  },
+
+  gallery: {
+    title: "Gallery",
+    back: "Back",
+    categories: {
+      school: "School Days",
+      cert: "Certificates",
+      military: "Military",
+      work: "Work",
+      project: "Projects",
+      hobby: "Hobbies",
+      artwork: "Artwork",
+      travel: "Travel",
+      misc: "Misc",
+    },
+    captions: {
+      "school-idphoto": "ID photo",
+      "school-young": "When I was little",
+      "school-steam": "Changwonnam High STEAM national competition",
+      "school-seoultech": "Seoul National University of Science and Technology",
+      "school-grad": "Graduation",
+
+      "cert-diploma": "Graduation certificate",
+      "cert-military": "Certificate of military service",
+      "cert-afi": "Advanced Freediver Instructor certification",
+      "cert-blsd": "BLSD Instructor certification",
+      "cert-cmas": "Earned CMAS international judge certification",
+      "cert-misc-dive": "Other underwater certifications",
+      "cert-opic": "OPIc",
+
+      "mil-enlist": "KATUSA - enlisted as Yongsan Military Police",
+      "mil-hmmwv": "HMMWV",
+      "mil-figuerra": "Sgt Figuerra",
+      "mil-pmo": "PMO",
+      "mil-m9": "My M9",
+      "mil-m4": "Inside the M4",
+      "mil-me": "me",
+      "mil-almanza": "PVT Almanza",
+      "mil-agosto": "PVT Agosto",
+      "mil-fierce": "PVT Fierce",
+
+      "work-taehwa-nh": "TaehwaInnovation tablet software development (NongHyup)",
+      "work-taehwa": "TaehwaInnovation",
+      "work-quit": "Resignation",
+      "work-bali1": "BITGET 2023 Bali business trip",
+      "work-bali2": "BITGET 2023 Bali business trip 2",
+      "work-bali3": "BITGET 2023 Bali business trip 3",
+      "work-wdf": "BITGET WDF 2023 business trip",
+
+      "pj-autopiano": "auto piano",
+      "pj-trafficjam2": "trafficjam2",
+      "pj-trafficlight": "Smart traffic light",
+      "pj-everlae": "Everlae Note",
+      "pj-genealogy": "Online genealogy",
+      "pj-rscorp": "Startup RS corp",
+      "pj-cryptohunter": "crypto hunter",
+      "pj-ltol": "GPT vs Gemini debate program",
+      "pj-supports": "Supports",
+      "pj-sss": "Project SSS",
+
+      "hob-talent": "Freediving, an unexpected talent discovered",
+      "hob-certs": "Earned countless freediving certifications",
+      "hob-guide": "Led countless overseas trips",
+
+      "art-license1": "Artwork - I Don't Wanna Get a Class-1 Driver's License 1",
+      "art-license2": "Artwork - I Don't Wanna Get a Class-1 Driver's License 2",
+      "art-absolve1": "Artwork - Absolve the Sins",
+      "art-absolve2": "Artwork - Absolve the Sins 2",
+
+      "trv-countries": "Travel - countless countries",
+      "trv-divetour": "Freediving tours - countless countries",
+
+      "misc-flutter": "This portfolio page is a FLUTTER web app! Updated 2026/03/01 - not Flutter anymore",
+      "misc-noai": "Built it myself from start to finish, no references! Updated 2026/03/01 - now the AI...on its own...",
+    },
   },
 };

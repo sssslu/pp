@@ -17,8 +17,14 @@ const WARM = ["#7a300f", "#b5501a", "#e86818", "#f59a34", "#ffbe6e", "#ffe0ad", 
 
 const GLYPH_RAMP = [".", ":", "+", "*", "o", "O", "0", "@"];
 
-const rampChar = (b: number) =>
-  GLYPH_RAMP[Math.max(0, Math.min(GLYPH_RAMP.length - 1, Math.floor(b * GLYPH_RAMP.length)))];
+/**
+ * 밝기 양자화 — 글리프를 (색 × 밝기단계) 버킷에 모아 상태 전환을 버킷당 1회로 줄인다.
+ * 램프 한 칸을 B_SUB등분하므로 단계 인덱스를 B_SUB으로 나누면 예전 rampChar와
+ * 글자가 완전히 같다(floor(floor(b*32)/4) === floor(b*8)). 즉 문자는 비트 단위로 동일하고
+ * 알파만 단계 대표값을 쓰는데, 그 오차가 최대 0.55/64 ≈ 0.0086(≈2/255)이라 눈에 띄지 않는다.
+ */
+const B_SUB = 4;
+const B_LEVELS = GLYPH_RAMP.length * B_SUB;
 
 interface DiskP { rr: number; phi: number; j: number; }
 interface OrbitP { rr: number; ang: number; tw: number; }
@@ -269,11 +275,33 @@ export function blackHoleRadius(w: number, h: number): number {
   return Math.min(w, h) * 0.16;
 }
 
-// 색 온도별 글리프 버킷 — 매 프레임 배열을 새로 만들지 않고 재사용한다 (GC 부담 감소)
-const glyphBuckets: number[][] = WARM.map(() => []);
+// 블랙홀은 롤(15°)이 걸린 ctx에 그려지므로, 화면 사각형과 견주려면 좌표를 먼저 회전시켜야 한다
+const ROLL_COS = Math.cos(GARGANTUA_ROLL);
+const ROLL_SIN = Math.sin(GARGANTUA_ROLL);
+
+// 프레임마다 갱신되는 컬링 경계 — 회전 후 좌표가 이 범위를 벗어나면 put()이 버린다.
+// (별똥별과 마찬가지로 캔버스 인스턴스 1개를 전제로 한 모듈 레벨 상태)
+let cullCx = 0, cullCy = 0;
+let cullX0 = 0, cullX1 = 0, cullY0 = 0, cullY1 = 0;
+
+/**
+ * (색 온도 × 밝기 단계) 글리프 버킷 — 매 프레임 배열을 새로 만들지 않고 재사용한다 (GC 부담 감소).
+ * 한 버킷 안에서는 색·알파·글자가 전부 같아 상태 전환이 버킷당 1회로 끝난다. 예전엔 색으로만
+ * 나눠 fillStyle은 7번이었지만 globalAlpha를 글리프마다(2천여 번) 새로 썼다.
+ */
+const glyphBuckets: number[][] = Array.from({ length: WARM.length * B_LEVELS }, () => []);
 
 function putGlyph(temp: number, sx: number, sy: number, b: number) {
-  glyphBuckets[Math.max(0, Math.min(WARM.length - 1, Math.floor(temp * WARM.length)))].push(sx, sy, b);
+  // 화면 밖이면 버킷에 담지도 않는다 — fillText는 클리핑돼도 비용을 낸다.
+  // 세로가 긴 화면에선 원반 바깥쪽(4.3R)이 화면을 넘어가 ~10%가 여기서 걸러진다.
+  const dx = sx - cullCx, dy = sy - cullCy;
+  const rx = dx * ROLL_COS - dy * ROLL_SIN;
+  if (rx < cullX0 || rx > cullX1) return;
+  const ry = dx * ROLL_SIN + dy * ROLL_COS;
+  if (ry < cullY0 || ry > cullY1) return;
+  const ci = Math.max(0, Math.min(WARM.length - 1, Math.floor(temp * WARM.length)));
+  const bi = Math.max(0, Math.min(B_LEVELS - 1, Math.floor(b * B_LEVELS)));
+  glyphBuckets[ci * B_LEVELS + bi].push(sx, sy);
 }
 
 // 폰트 문자열은 R가 그대로면 다시 만들지 않는다 (매 프레임 문자열 생성 방지)
@@ -282,18 +310,27 @@ let cachedFont = "";
 
 function drawGargantua(
   ctx: CanvasRenderingContext2D,
+  w: number, h: number,
   cx: number, cy: number, R: number, t: number,
   P: GargantuaParticles,
 ) {
   const cosI = Math.cos(GARGANTUA_TILT);
   const shRx = 1.0 * R, shRy = 0.95 * R;
+  const fontPx = Math.max(9, R * 0.08);
   if (R !== cachedFontR) {
     cachedFontR = R;
-    cachedFont = `${Math.max(9, R * 0.08)}px monospace`;
+    cachedFont = `${fontPx}px monospace`;
   }
   ctx.font = cachedFont;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
+
+  // 컬링 경계 — (cx,cy) 기준 회전 좌표가 [0,w]×[0,h]에 글리프 한 칸(fontPx) 여유를 더한
+  // 범위 안인지 본다. 회전된 글자 상자의 반대각선이 약 0.63×fontPx라 여유가 넉넉해,
+  // 화면 경계에 걸친 글자가 통째로 사라지는 일이 없다.
+  cullCx = cx; cullCy = cy;
+  cullX0 = -fontPx - cx; cullX1 = w + fontPx - cx;
+  cullY0 = -fontPx - cy; cullY1 = h + fontPx - cy;
 
   // 이벤트 호라이즌 그림자
   ctx.globalCompositeOperation = "source-over";
@@ -411,17 +448,26 @@ function drawGargantua(
     const spot = 1 + 0.5 * Math.max(0, 1 - d / 0.6);
     const b = Math.min(1, (0.82 + 0.18 * Math.sin(t * 3 + p.tw)) * spot) * edge;
     if (b < 0.1) continue;
-    buckets[WARM.length - 1].push(sx, sy, b);
+    // 광자 링은 늘 가장 뜨거운 색이다 — put(1, …)이 floor(1×7)→clamp로 정확히 그 버킷에 넣는다.
+    // 직접 push하면 컬링을 건너뛰므로 반드시 put을 거친다.
+    put(1, sx, sy, b);
   }
 
-  for (let k = 0; k < WARM.length; k++) {
-    const arr = buckets[k];
-    if (!arr.length) continue;
-    ctx.fillStyle = WARM[k];
-    for (let i = 0; i < arr.length; i += 3) {
-      const b = arr[i + 2];
-      ctx.globalAlpha = 0.45 + 0.55 * b;
-      ctx.fillText(rampChar(b), arr[i], arr[i + 1]);
+  // 버킷당 색·알파·글자를 한 번만 정하고 좌표만 흘려 넣는다.
+  // lighter(가산) 합성이라 그리기 순서가 바뀌어도 결과가 같다 — 포화 클램프도 순서 무관.
+  for (let ci = 0; ci < WARM.length; ci++) {
+    const base = ci * B_LEVELS;
+    let colorSet = false;
+    for (let bi = 0; bi < B_LEVELS; bi++) {
+      const arr = buckets[base + bi];
+      if (!arr.length) continue;
+      if (!colorSet) {
+        ctx.fillStyle = WARM[ci];
+        colorSet = true;
+      }
+      ctx.globalAlpha = 0.45 + 0.55 * ((bi + 0.5) / B_LEVELS);
+      const ch = GLYPH_RAMP[Math.floor(bi / B_SUB)];
+      for (let i = 0; i < arr.length; i += 2) ctx.fillText(ch, arr[i], arr[i + 1]);
     }
   }
   ctx.globalAlpha = 1;
@@ -492,11 +538,36 @@ export function drawGargantuaScene(
   ctx.translate(cx, cy);
   ctx.rotate(GARGANTUA_ROLL);
   ctx.translate(-cx, -cy);
-  drawGargantua(ctx, cx, cy, R, t, particles);
+  drawGargantua(ctx, w, h, cx, cy, R, t, particles);
   ctx.restore();
 
   // 비네트
   ctx.globalCompositeOperation = "source-over";
   ctx.fillStyle = sceneGrads.vig;
   ctx.fillRect(0, 0, w, h);
+}
+
+/**
+ * 원반·헤일로·광자 링·가루는 R 단위라 화면 크기와 무관하다 — 한 번만 만들어 재사용한다.
+ * 예전엔 AsciiBackground가 마운트되자마자 무조건 씨딩했는데, 블랙홀은 7번 곡 전용이라
+ * 대부분의 세션에서 3000개가 쓰이지 않고 버려졌다. 첫 프레임까지 미룬다.
+ */
+let sharedParticles: GargantuaParticles | null = null;
+
+/**
+ * shapes.ts의 SceneShape.seed 계약에 맞춘 진입점.
+ * 화면 크기에 종속된 것(별가루·성운)만 새로 씨딩하고, 매 프레임 호출할 렌더러를 돌려준다.
+ * 상태를 클로저에 들려 보내므로 호출부는 장면의 내부 구조를 알 필요가 없다.
+ * (반환 타입을 shapes.ts의 SceneRenderer로 쓰지 않고 구조적으로 적는 이유는 순환 import 방지 —
+ *  shapes.ts가 이 모듈을 값으로 import하므로 반대 방향 의존을 만들면 안 된다)
+ */
+export function seedGargantuaScene(
+  w: number,
+  h: number,
+): (ctx: CanvasRenderingContext2D, vw: number, vh: number, now: number) => void {
+  if (!sharedParticles) sharedParticles = seedGargantua();
+  const particles = sharedParticles;
+  const stars = seedStars(w, h);
+  const nebulas = seedNebulas(w, h);
+  return (ctx, vw, vh, now) => drawGargantuaScene(ctx, vw, vh, now, particles, stars, nebulas);
 }

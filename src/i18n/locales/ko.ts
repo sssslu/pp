@@ -17,6 +17,42 @@ export interface ExpLine4 { before: string; mid: string; after: string }
 export interface ExpLine5 { before: string; mid1: string; mid2: string; after: string }
 export interface ExpLine6 { before: string; after: string }
 
+/**
+ * 갤러리 카테고리 식별자.
+ * 표시명은 로케일로 가지만 식별자는 로케일 밖에 둔다 — 필터 state가 표시명을
+ * 담으면 카테고리를 연 채 언어를 바꾸는 순간 문자열 비교가 어긋나 화면이 빈다.
+ */
+export type GalleryCategoryId =
+  | "school"
+  | "cert"
+  | "military"
+  | "work"
+  | "project"
+  | "hobby"
+  | "artwork"
+  | "travel"
+  | "misc";
+
+/**
+ * 갤러리 사진 식별자.
+ * imgur URL을 키로 쓰면 이미지를 교체할 때 번역이 통째로 유실되므로 슬러그를 붙였다.
+ * Record<GalleryItemId, string>으로 좁혀 두면 한 장만 빠져도 tsc가 잡는다
+ * (projects.descriptions가 Record<string, string>이라 ko/en 키가 갈라진 전례가 있다).
+ */
+export type GalleryItemId =
+  | "school-idphoto" | "school-young" | "school-steam" | "school-seoultech" | "school-grad"
+  | "cert-diploma" | "cert-military" | "cert-afi" | "cert-blsd" | "cert-cmas" | "cert-misc-dive" | "cert-opic"
+  | "mil-enlist" | "mil-hmmwv" | "mil-figuerra" | "mil-pmo" | "mil-m9" | "mil-m4"
+  | "mil-me" | "mil-almanza" | "mil-agosto" | "mil-fierce"
+  | "work-taehwa-nh" | "work-taehwa" | "work-quit"
+  | "work-bali1" | "work-bali2" | "work-bali3" | "work-wdf"
+  | "pj-autopiano" | "pj-trafficjam2" | "pj-trafficlight" | "pj-everlae" | "pj-genealogy"
+  | "pj-rscorp" | "pj-cryptohunter" | "pj-ltol" | "pj-supports" | "pj-sss"
+  | "hob-talent" | "hob-certs" | "hob-guide"
+  | "art-license1" | "art-license2" | "art-absolve1" | "art-absolve2"
+  | "trv-countries" | "trv-divetour"
+  | "misc-flutter" | "misc-noai";
+
 export interface Translations {
   tabs: readonly [string, string, string, string, string];
   hero: { title: string; subtitle: string };
@@ -43,6 +79,8 @@ export interface Translations {
     strengthsTitle: string;
     strengths: readonly string[];
     stackTitle: string;
+    /** 스택 목록 중 유일하게 고유명사가 아닌 항목 — 나머지 12개는 컴포넌트 상수로 남는다 */
+    dbSkill: string;
   };
   projects: {
     /** 홍보 카드 배지 문구 (예: "홍보") */
@@ -69,6 +107,15 @@ export interface Translations {
     title: string;
     copiedPrefix: string;
   };
+  gallery: {
+    title: string;
+    /** 카테고리 격자로 돌아가는 버튼 문구 (화살표 기호는 코드에 남는다) */
+    back: string;
+    /** 카테고리 타일 라벨 — 대표 이미지의 alt로도 재사용된다 */
+    categories: Record<GalleryCategoryId, string>;
+    /** 사진 캡션 — 보이는 캡션과 img alt가 같은 문자열을 공유한다 */
+    captions: Record<GalleryItemId, string>;
+  };
 }
 
 export const ko: Translations = {
@@ -93,7 +140,8 @@ export const ko: Translations = {
       line1: { before: "- ", mid1: ", 자동화 시스템을 활용해 ", mid2: "을 구현하고 운영한 경험이 있습니다. ", after: "" },
       line2: "- iOS 및 Android용 모바일 앱을 설계하고 배포한 경험이 있습니다.",
       line3: { before: "- ", mid1: " 사서 프로그램 ", mid2: " 와 ", mid3: " 고속 스캔 프로그램 ", after: " 를 유지보수한 경험이 있습니다." },
-      line4: { before: "- ", mid: "에서 여러가지 ", after: "에서 활동한 경험이 있습니다." },
+      // 조사 '에서'가 앞뒤로 겹쳐 비문이던 것을 '로'로 교정 (슬롯 순서: 장소 → 역할)
+      line4: { before: "- ", mid: "에서 여러가지 ", after: "로 활동한 경험이 있습니다." },
       line5: { before: "- ", mid1: "에서 ", mid2: "을 받고 ", after: "를 수행한 경험이 있습니다." },
       line6: { before: "- ", after: "로 활동한 경험이 있습니다!" },
     },
@@ -103,6 +151,7 @@ export const ko: Translations = {
     strengthsTitle: "강점",
     strengths: ["창의성", "책임감", "능통한 영어 / 한국어"],
     stackTitle: "스택",
+    dbSkill: "DB의 SQL 및 CRUD",
   },
 
   projects: {
@@ -198,5 +247,81 @@ export const ko: Translations = {
   contact: {
     title: "Contact",
     copiedPrefix: "Contact Copied! : ",
+  },
+
+  gallery: {
+    title: "갤러리",
+    back: "뒤로가기",
+    categories: {
+      school: "학창시절",
+      cert: "증명서",
+      military: "군대",
+      work: "직장",
+      project: "프로젝트",
+      hobby: "취미",
+      artwork: "아트웍",
+      travel: "여행",
+      misc: "기타",
+    },
+    captions: {
+      "school-idphoto": "증명사진",
+      "school-young": "어릴때",
+      "school-steam": "창원남고 STEAM 전국 대회",
+      "school-seoultech": "서울과학기술대학교",
+      "school-grad": "졸업",
+
+      "cert-diploma": "졸업 증명서",
+      "cert-military": "병적 증명서",
+      "cert-afi": "어드밴스드 프리다이버 강사 자격",
+      "cert-blsd": "BLSD 강사 자격",
+      "cert-cmas": "CMAS 국제 심판관 자격 취득",
+      "cert-misc-dive": "기타 수중 자격",
+      "cert-opic": "오픽",
+
+      "mil-enlist": "KATUSA - 용산 헌병으로 입대",
+      "mil-hmmwv": "HMMWV",
+      "mil-figuerra": "Sgt Figuerra",
+      "mil-pmo": "PMO",
+      "mil-m9": "My M9",
+      "mil-m4": "M4 내부",
+      "mil-me": "me",
+      "mil-almanza": "PVT Almanza",
+      "mil-agosto": "PVT Agosto",
+      "mil-fierce": "PVT Fierce",
+
+      "work-taehwa-nh": "태화이노베이션 테블릿 소프트웨어 개발 (농협)",
+      "work-taehwa": "태화이노베이션",
+      "work-quit": "퇴사",
+      "work-bali1": "BITGET 2023 발리 출장",
+      "work-bali2": "BITGET 2023 발리 출장 2",
+      "work-bali3": "BITGET 2023 발리 출장 3",
+      "work-wdf": "BITGET WDF 2023 출장",
+
+      "pj-autopiano": "auto piano",
+      "pj-trafficjam2": "trafficjam2",
+      "pj-trafficlight": "스마트신호등",
+      "pj-everlae": "애벌레노트",
+      "pj-genealogy": "온라인족보",
+      "pj-rscorp": "스타트업 RS corp",
+      "pj-cryptohunter": "crypto hunter",
+      "pj-ltol": "GPT vs Gemini 토론 프로그램",
+      "pj-supports": "써포츠",
+      "pj-sss": "Project SSS",
+
+      "hob-talent": "프리다이빙 의외의 재능 발견",
+      "hob-certs": "수많은 프리다이빙 자격 취득",
+      "hob-guide": "수많은 해외 인솔",
+
+      "art-license1": "작품 - 1종보통따기싫어 1",
+      "art-license2": "작품 - 1종보통따기싫어 2",
+      "art-absolve1": "작품 - 죄를 사하다",
+      "art-absolve2": "작품 - 죄를 사하다 2",
+
+      "trv-countries": "여행 - 수많은 나라",
+      "trv-divetour": "프리다이빙 투어 - 수많은 나라",
+
+      "misc-flutter": "해당 포트폴리오 페이지는 FLUTTER 웹앱 입니다! 20260301 수정 - 이제 플러터 아닙니다",
+      "misc-noai": "처음부터 끝까지 레퍼런스없이 직접 제작하였습니다! 20260301 수정 - 이제 AI 가...알아서...",
+    },
   },
 };

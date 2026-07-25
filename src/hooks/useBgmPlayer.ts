@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BASE_GAIN, getTrackTheme, getTrackGain } from "@/lib/bgmTracks";
+import { BASE_GAIN, TRACK_FILES, getTrackTheme, getTrackGain } from "@/lib/bgmTracks";
 import { dispatchVisualTheme, dispatchRipple } from "@/lib/ascii/events";
 
 export type VolumeState = "full" | "off";
@@ -16,7 +16,7 @@ function createAudioCtx(): AudioContext {
   return new Ctor();
 }
 
-function shuffle<T>(arr: T[]): T[] {
+function shuffle<T>(arr: readonly T[]): T[] {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -27,7 +27,7 @@ function shuffle<T>(arr: T[]): T[] {
 
 /**
  * BGM 재생 전담 훅.
- * - /api/bgm 목록을 셔플해 순환 재생
+ * - bgmTracks의 TRACK_FILES를 셔플해 순환 재생
  * - Web Audio GainNode로 볼륨 제어 (iOS 대응), 곡 전환 시 페이드아웃/인
  * - 곡마다 bgmTracks의 정규화 배율(gain)을 곱해 모든 곡이 같은 체감 음량으로 재생
  * - 곡이 바뀔 때마다 bgmTracks의 트랙 테마를 시각 이벤트로 브로드캐스트
@@ -310,19 +310,16 @@ export function useBgmPlayer() {
     playTrack(getNextTrackIndex());
   }, [getNextTrackIndex, playTrack]);
 
-  // 플레이리스트 로드 + 첫 곡 재생
+  // 플레이리스트 셔플 + 첫 곡 재생.
+  // 목록이 코드 상수(TRACK_FILES)라 네트워크 왕복이 없다 — 예전엔 fetch 하나가 실패하면
+  // 트랙 0개로 남아 BGM은 물론 곡별 시각 테마까지 통째로 멎었고, 그 실패가 아무 흔적도
+  // 남기지 않았다. 이제는 실패할 단계 자체가 없다.
   useEffect(() => {
-    fetch("/api/bgm")
-      .then((r) => r.json())
-      .then(({ files }: { files: string[] }) => {
-        if (!files?.length) return;
-        listRef.current = shuffle(files);
-        // 자동재생이 허용된 환경이면 재생 시작 전에 그래프를 만들어 둔다
-        // (첫 클릭에서 재생 중 경로 교체로 생기던 순간 끊김 방지)
-        tryEagerAudioGraph();
-        playTrack(0);
-      })
-      .catch(() => {});
+    listRef.current = shuffle(TRACK_FILES);
+    // 자동재생이 허용된 환경이면 재생 시작 전에 그래프를 만들어 둔다
+    // (첫 클릭에서 재생 중 경로 교체로 생기던 순간 끊김 방지)
+    tryEagerAudioGraph();
+    playTrack(0);
   }, [playTrack, tryEagerAudioGraph]);
 
   useEffect(() => clearFadeTimers, [clearFadeTimers]);

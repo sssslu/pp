@@ -45,6 +45,13 @@ const FAST_DECODE_MS = 800;
 
 const CELL = 8; // 글리프 셀 크기(css px) — 배경(6px)보다 약간 굵은 소나 해상도
 const SEEN_KEY = "whale-decoded"; // 세션 내 재방문이면 단축판 재생
+/**
+ * 리빌을 재생해도 되는 최소 캔버스 크기(css px). 시작할 때만이 아니라 매 프레임 이 문턱을 쓴다.
+ * 이보다 작으면 '좁은 화면'이 아니라 '지금 화면에 없는 상태'로 본다 —
+ * 패널이 접히면(display:none) 섹션은 마운트된 채 모든 측정이 0x0으로 나온다.
+ * 실제로 펼쳐지면 가장 좁은 폰에서도 200px대라 이 문턱에 걸릴 일이 없다.
+ */
+const MIN_REVEAL_PX = 40;
 
 /** 어두움→밝음 글리프 램프. 최암부는 글리프를 찍지 않아 심연으로 남긴다. */
 const RAMP = [".", ":", "/", "0", "1", "+"];
@@ -194,52 +201,65 @@ function SonarFrame() {
       if (!noise || noise.w !== w || noise.h !== h) noise = { w, h, cells: makeNoise(w, h) };
       return noise.cells;
     };
-    const canvas = canvasRef.current;
-    if (canvas) {
-      const rect = canvas.getBoundingClientRect();
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = Math.round(rect.width * dpr);
-      canvas.height = Math.round(rect.height * dpr);
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        ctx.scale(dpr, dpr);
-        paintNoise(ctx, rect.width, rect.height, noiseFor(rect.width, rect.height));
-      }
-    }
-
-    const settle = () => {
-      if (!alive) return;
-      try {
-        sessionStorage.setItem(SEEN_KEY, "1");
-      } catch {}
-      setPhase("settled");
+    /**
+     * 이 인스턴스가 '진짜로 화면에 있는지' 재서 그 사각형을 돌려준다. null이면 접혀 있다.
+     * 대기 화면에서는 다섯 섹션이 전부 display:none 패널 안에 마운트돼 있어
+     * 0x0으로 측정된다. 이걸 좁은 화면으로 오인해 그냥 결과로 점프시키면
+     * 아무도 못 본 연출이 '봤다'로 기록돼, 정작 취미 탭을 연 첫 방문자가
+     * 단축판만 보게 된다.
+     *
+     * 리빌의 '시작'과 '진행'이 모두 이 문 하나를 지난다. 시작만 막으면 재생 도중에
+     * 탭을 닫았을 때가 그대로 뚫린다 — 닫기는 mountSeq를 올리지 않아 이 인스턴스가
+     * 언마운트되지 않고, 그래서 클린업도 돌지 않은 채 루프만 display:none 캔버스 위에서
+     * 계속 돈다. 그러면 0x0 사각형으로 계산된 리플이 화면 좌상단에서 터지고,
+     * 아무도 못 본 연출이 끝까지 흘러가 '봤다'로 기록된다.
+     */
+    const measure = (cv: HTMLCanvasElement): DOMRect | null => {
+      const rect = cv.getBoundingClientRect();
+      if (rect.width < MIN_REVEAL_PX || rect.height < MIN_REVEAL_PX) return null;
+      return rect;
     };
 
-    // 소나 리빌: 핑 1(스캔)이 글리프를 찍고, 핑 2(디코드)가 지우며 실사를 현상한다.
-    // rAF 루프는 리빌 동안만 돌고, 프레임당 작업은 '이번 프레임에 파면을 넘은 셀'뿐이다.
-    const beginReveal = (img: HTMLImageElement) => {
-      const cv = canvasRef.current;
-      if (reduced || !cv) {
-        settle();
-        return;
-      }
-      const rect = cv.getBoundingClientRect();
-      const w = rect.width;
-      const h = rect.height;
-      if (w < 40 || h < 40) {
-        settle();
-        return;
-      }
+    /** 백버퍼를 CSS 크기에 맞추고 대기 노이즈를 1회 페인트한다 (리빌 첫 프레임도 같은 시작점) */
+    const primeCanvas = (cv: HTMLCanvasElement, w: number, h: number) => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       cv.width = Math.round(w * dpr);
       cv.height = Math.round(h * dpr);
       const ctx = cv.getContext("2d");
+      if (!ctx) return null;
+      ctx.scale(dpr, dpr);
+      paintNoise(ctx, w, h, noiseFor(w, h)); // 크기가 같으면 대기 화면과 동일 패턴
+      return ctx;
+    };
+
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const rect = measure(canvas);
+      if (rect) primeCanvas(canvas, rect.width, rect.height);
+    }
+
+    /** 연출을 건너뛰고 결과로 점프한다 — 세션 플래그는 건드리지 않는다 */
+    const settle = () => {
+      if (!alive) return;
+      setPhase("settled");
+    };
+
+    /** 리빌을 끝까지 재생했을 때만 '봤다'로 기록한다 — 이 세션의 재방문만 단축판을 받는다 */
+    const markSeen = () => {
+      try {
+        sessionStorage.setItem(SEEN_KEY, "1");
+      } catch {}
+    };
+
+    // 소나 리빌: 핑 1(스캔)이 글리프를 찍고, 핑 2(디코드)가 지우며 실사를 현상한다.
+    // rAF 루프는 리빌 동안만 돌고, 프레임당 작업은 '이번 프레임에 파면을 넘은 셀'뿐이다.
+    // 호출자가 문(measure)을 열어 준 뒤에만 부르고, 루프는 매 프레임 그 문을 다시 확인한다.
+    const beginReveal = (img: HTMLImageElement, cv: HTMLCanvasElement, w: number, h: number) => {
+      const ctx = primeCanvas(cv, w, h);
       if (!ctx) {
         settle();
         return;
       }
-      ctx.scale(dpr, dpr);
-      paintNoise(ctx, w, h, noiseFor(w, h)); // 크기가 같으면 대기 화면과 동일 패턴
       ctx.font = `${CELL}px monospace`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
@@ -261,6 +281,20 @@ function SonarFrame() {
 
       const loop = (now: number) => {
         if (!alive) return;
+        /*
+         * 매 프레임 문을 다시 지난다 — 재생 중에 탭이 닫히면(패널이 display:none) 이
+         * 인스턴스는 리마운트되지 않아 클린업이 돌지 않으므로, 루프가 스스로 내려와야 한다.
+         * 여기서 멈추면 리플도 쏘지 않고 markSeen도 하지 않는다: 아무도 못 본 연출은
+         * '본 것'이 아니므로 세션 플래그가 남지 않고, 다시 펼쳐질 때 리빌이 처음부터
+         * 온전히 재생된다. 남은 상태는 settled로 정리한다 — 캔버스가 언마운트되며
+         * 백버퍼(수 MB)까지 반납되고, 접힌 채 멈춘 인스턴스가 어쩌다 다시 보이더라도
+         * 깨진 글리프 판이 아니라 모션 감소 설정과 같은 완성된 사진으로 보인다.
+         */
+        const rect = measure(cv);
+        if (!rect) {
+          settle();
+          return;
+        }
         const t = now - t0;
 
         // 핑 1 — 스캔: 파면 뒤로 사진의 휘도가 ASCII 글리프로 찍힌다
@@ -282,11 +316,12 @@ function SonarFrame() {
             // 고래의 클릭이 액자를 뚫고 사이트 배경으로 — 기존 리플 버스 재사용.
             // 탭 비활성으로 wall-clock이 점프해 파면이 이미 지나간 뒤라면
             // 맥락 없는 리플이 되므로 발사하지 않는다.
+            // 좌표는 이번 프레임의 문에서 받은 사각형을 그대로 쓴다 — 다시 재지 않으니
+            // '통과했는데 0x0으로 계산되는' 틈이 아예 없다.
             if (t - decodeAt < decodeMs) {
-              const cr = cv.getBoundingClientRect();
               dispatchRipple({
-                x: cr.left + cr.width * ORIGIN.x,
-                y: cr.top + cr.height * ORIGIN.y,
+                x: rect.left + rect.width * ORIGIN.x,
+                y: rect.top + rect.height * ORIGIN.y,
                 thin: true,
               });
             }
@@ -316,12 +351,38 @@ function SonarFrame() {
 
         if (i2 >= cells.length && sparks.length === 0) {
           ctx.clearRect(0, 0, w, h); // 잔여 헤어라인까지 완전 제거
+          markSeen(); // 여기까지 와야 실제로 본 것이다
           settle();
           return;
         }
         rafRef.current = requestAnimationFrame(loop);
       };
       rafRef.current = requestAnimationFrame(loop);
+    };
+
+    /*
+     * 이미지가 준비돼도 이 인스턴스가 접힌 패널 안이면 연출은 재생하지 않는다.
+     * 붙잡아 두지도 않는다: 탭이 열리는 순간 page.tsx가 그 섹션을 새 세대(mountSeq)로
+     * 리마운트하므로, 연출을 재생하는 것은 언제나 '펼쳐진 뒤에 태어난' 인스턴스다.
+     * 대기 인스턴스가 디코드된 1305x910 이미지와 ResizeObserver를 쥐고 기다리던 것은
+     * 그래서 순수한 손해였다 — 취미 탭을 끝내 열지 않는 방문자(대다수)가 떠날 때까지
+     * 붙들려 있었고, 관측자는 실제로 단 한 번도 발화하지 못했다(펼쳐지는 커밋에서
+     * 곧바로 리마운트되어 콜백이 도착하기 전에 언마운트된다). 대신 리빌 중단은
+     * 루프의 문이 직접 처리한다 — 관측자가 대신할 일이 남아 있지 않다.
+     * <img>는 그대로 둔다 — 다운로드와 alt는 연출이 아니라 콘텐츠/SEO 결정이다.
+     */
+    const armReveal = (img: HTMLImageElement) => {
+      // 모션 감소 설정이면 연출을 끄는 게 아니라 결과로 점프한다 (코드베이스 원칙).
+      // 재생한 적이 없으니 세션 플래그도 남기지 않는다.
+      if (reduced) {
+        settle();
+        return;
+      }
+      const cv = canvasRef.current;
+      if (!cv) return;
+      const rect = measure(cv);
+      if (!rect) return; // 접혀 있다 — 이 인스턴스는 무대에 오르지 않는다
+      beginReveal(img, cv, rect.width, rect.height);
     };
 
     // webp 우선, 실패 시 png 폴백. 성공/실패 판정은 onload/onerror로 하고
@@ -344,14 +405,14 @@ function SonarFrame() {
       .then((im) => {
         if (!alive) return;
         setImgSrc(IMG_SRC);
-        beginReveal(im);
+        armReveal(im);
       })
       .catch(() =>
         loadImage(IMG_FALLBACK)
           .then((im) => {
             if (!alive) return;
             setImgSrc(IMG_FALLBACK);
-            beginReveal(im);
+            armReveal(im);
           })
           .catch(() => alive && setPhase("failed")),
       );

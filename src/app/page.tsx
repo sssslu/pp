@@ -1,22 +1,25 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import dynamic from "next/dynamic";
+import { type ReactNode, useState, useEffect, useRef, useCallback, useMemo } from "react";
 import HeroSection from "@/components/HeroSection";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import BottomDock from "@/components/BottomDock";
 import { motion, AnimatePresence } from "framer-motion";
 import AsciiBackground from "@/components/AsciiBackground";
-import { LanguageProvider } from "@/i18n";
+import { LanguageProvider, useLanguage } from "@/i18n";
 import { useBgmPlayer, type VolumeState } from "@/hooks/useBgmPlayer";
 import { dispatchRipple } from "@/lib/ascii/events";
+import { SECTIONS, SECTION_PANEL_ID, type SectionId } from "@/lib/sections";
 
-const AboutSection    = dynamic(() => import("@/components/AboutSection"),    { ssr: false });
-const GallerySection  = dynamic(() => import("@/components/GallerySection"),  { ssr: false });
-const HobbySection    = dynamic(() => import("@/components/HobbySection"),    { ssr: false });
-const PerkSection     = dynamic(() => import("@/components/PerkSection"),     { ssr: false });
-const ProjectsSection = dynamic(() => import("@/components/ProjectsSection"), { ssr: false });
-const ContactFooter   = dynamic(() => import("@/components/ContactFooter"),   { ssr: false });
+// 전부 정적 import다. dynamic(ssr:false)이던 시절엔 프리렌더 HTML의 가시 텍스트가
+// 56자(언어 스위처 + 프로필 두 줄 + 탭 이름 다섯)뿐이었고 <a>도 <h2>도 0개였다 —
+// 구글이 읽을 본문이 한 글자도 없었다는 뜻이다.
+import AboutSection    from "@/components/AboutSection";
+import PerkSection     from "@/components/PerkSection";
+import ProjectsSection from "@/components/ProjectsSection";
+import HobbySection    from "@/components/HobbySection";
+import GallerySection  from "@/components/GallerySection";
+import ContactFooter   from "@/components/ContactFooter";
 
 const VOLUME_BTN: Record<VolumeState, string> = {
   full: "bg-cyan-900/20 border-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.5)] hover:shadow-[0_0_30px_rgba(34,211,238,0.8)]",
@@ -30,6 +33,14 @@ const MINI_RIPPLE_MIN_MS = 160;
 /** 터치 후 이 시간(ms) 안에 오는 click은 같은 탭의 합성 click으로 보고 리플을 중복 생성하지 않는다 */
 const TOUCH_CLICK_DEDUPE_MS = 700;
 
+/**
+ * 재생 실패로 인한 연속 자동 스킵 상한.
+ * 한 곡이 404여도 다음 곡으로 넘어가 복구되지만, 서버가 통째로 죽은 상황에서까지
+ * 계속 넘기면 리플과 시각 테마 전환이 목록 길이만큼 줄줄이 터진다. 몇 번 시도해도
+ * 소리가 안 나면 조용히 멈추는 편이 낫다.
+ */
+const MAX_TRACK_FAIL_SKIPS = 3;
+
 // 롱프레스(곡 넘김) 발견 유도: 유령 손가락이 버튼을 꾹 누르는 시연 —
 // 버튼이 눌리며 실제 롱프레스와 같은 링이 노랗게 차오르고, 완성되는 순간
 // "LONG PRESS!" 라벨이 튀어나온다. 음악이 실제로 나오는 중일 때만 보여주고,
@@ -41,6 +52,11 @@ const HINT_DURATION_MS = 3300;  // 시연 전체 길이 (누름 → 링 채움 �
 const HINT_MIN_PLAY_S  = 6;     // 한 곡을 이만큼(초) 들어야 시연 시작
 const HINT_MAX_SHOWS   = 6;     // 세션당 시연 상한 — 발견 못 해도 이 이상 조르지 않는다
 const HINT_STORAGE_KEY = "bgm-longpress-discovered";
+
+/** 패널 열림/닫힘 연출 시간(초). 탭 전환은 이 연출을 닫힘→열림으로 두 번 태운다 */
+const PANEL_ANIM_S = 0.35;
+/** 패널 상단 40px 페이드 마스크 — 스크롤된 내용이 화면 위로 녹아 사라지는 액자 */
+const PANEL_MASK = "linear-gradient(to bottom, transparent 0px, black 40px)";
 
 // ── 아이콘 ────────────────────────────────────────────────────────────
 
@@ -76,10 +92,31 @@ export default function Home() {
 }
 
 function HomeInner() {
+  const { t } = useLanguage();
+
+  /** 사용자가 고른 탭. null이면 대기 화면 (도크 하이라이트·hero 표시의 기준) */
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const [viewCount, setViewCount]         = useState(-1);
-  const [pressing, setPressing]           = useState(false);
-  const [hintOn, setHintOn]               = useState(false);
+  /**
+   * 패널 안에서 실제로 펼쳐 놓은 섹션.
+   * 탭을 바꾸면 selectedIndex가 먼저 바뀌고, 닫힘 연출이 끝난 뒤에야 여기가 따라온다 —
+   * 예전 AnimatePresence mode="wait"의 '나갔다 들어오기'를 그대로 재현하기 위함이다.
+   * null이면 다섯 섹션이 전부 흐름에 남는다 (= 크롤러가 읽는 상태).
+   */
+  const [shownIndex, setShownIndex] = useState<number | null>(null);
+  /**
+   * 섹션별 마운트 세대. 섹션이 실제로 펼쳐지는 순간에만 1 올라가고 그 값이 key로 들어가,
+   * 그 섹션 하나만 새 인스턴스로 갈린다. 이유는 둘이다.
+   * (1) 예전엔 탭을 닫으면 섹션이 통째로 언마운트돼 다시 열 때 연출이 처음부터 재생됐다
+   *     (블랙홀 붕괴, 고래 소나, 갤러리 카테고리 초기화). 항상 마운트로 바꾸면서 그
+   *     동작이 사라지는 것을 막는다.
+   * (2) 접힌 채(display:none) 마운트된 인스턴스는 캔버스 크기가 0이라 소나 연출이
+   *     그냥 흘러가 버린다 — 실제로 펼쳐질 때 새 인스턴스를 줘야 크기를 갖고 시작한다.
+   */
+  const [mountSeq, setMountSeq] = useState<readonly number[]>(() => SECTIONS.map(() => 0));
+
+  const [viewCount, setViewCount] = useState(-1);
+  const [pressing, setPressing]   = useState(false);
+  const [hintOn, setHintOn]       = useState(false);
 
   const {
     audioRef, volumeState, cycleVolume, skipToNextTrack, ensureAudioGraph, resumeIfAutoMuted,
@@ -88,10 +125,24 @@ function HomeInner() {
 
   // ── 롱프레스(곡 넘김) / 클릭(볼륨 토글) ───────────────────────────
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isLongPress    = useRef(false);
+  /**
+   * 롱프레스로 곡을 넘긴 뒤 따라오는 click 한 번을 반드시 삼키기 위한 표식.
+   * 시간(쿨다운)만으로 거르면 합성 click이 조금 늦게 도착했을 때 그대로 통과해
+   * 제스처 한 번이 '곡 넘김 + 음소거 토글'을 동시에 일으킨다. 그래서 시간이 아니라
+   * 횟수로 막는다 — handleClick이 정확히 한 번만 소비한다.
+   * 버튼 밖에서 손을 떼면 click이 아예 오지 않아 표식이 남는데, 다음 누름이 시작될 때
+   * 지워서 그 다음 진짜 클릭까지 삼키지 않게 한다 (버튼 클릭은 항상 누름으로 시작한다).
+   */
+  const pendingClickSwallow = useRef(false);
   const pressCoords    = useRef({ x: 0, y: 0 });
+  /**
+   * 이 시각 전까지는 화면 전역 미세 리플을 만들지 않는다 — 롱프레스가 이미 굵은 곡 전환
+   * 리플을 쏜 직후라 중복이다. 플래그가 아니라 '시각'인 것이 핵심이다: 어떤 이벤트가
+   * 유실돼도 저절로 풀려서, 예전처럼 리플이 영구히 막히는 상태가 성립하지 않는다.
+   */
   const cooldownUntil  = useRef(0);
   const discovered     = useRef(false);
+  const volumeBtnRef   = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     try {
@@ -100,12 +151,15 @@ function HomeInner() {
   }, []);
 
   const handlePressStart = useCallback((clientX: number, clientY: number) => {
-    isLongPress.current = false;
+    // 새 제스처의 시작 — 앞선 롱프레스가 남긴 표식은 여기서 만료된다.
+    // (버튼 밖에서 손을 떼 삼킬 click이 끝내 오지 않은 경우가 이 자리에서 정리된다)
+    pendingClickSwallow.current = false;
     pressCoords.current = { x: clientX, y: clientY };
     setPressing(true);
     setHintOn(false);
     longPressTimer.current = setTimeout(() => {
-      isLongPress.current = true;
+      // 곡을 넘겼으니, 손을 뗄 때 따라올 click 한 번은 무조건 삼킨다
+      pendingClickSwallow.current = true;
       cooldownUntil.current = Date.now() + 200;
       // 사용자가 롱프레스를 발견했으니 힌트는 그만 보여준다
       discovered.current = true;
@@ -117,7 +171,11 @@ function HomeInner() {
 
   const handlePressEnd = useCallback(() => {
     setPressing(false);
-    if (isLongPress.current) cooldownUntil.current = Date.now() + 250;
+    // 손을 뗐으니 미세 리플 쿨다운만 연장한다 — 삼킬 click 표식은 여기서 건드리지
+    // 않는다. 예전엔 '롱프레스 중' 플래그를 handleClick에서만 내려서, 버튼 밖에서 떼면
+    // click이 오지 않아 플래그가 영구히 켜진 채 남고 사이트 전역 리플이 통째로 막혔다.
+    // 이제 리플을 막는 것은 저절로 만료되는 시각뿐이라 그 상태가 아예 성립하지 않는다.
+    if (pendingClickSwallow.current) cooldownUntil.current = Date.now() + 250;
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
@@ -125,14 +183,51 @@ function HomeInner() {
   }, []);
 
   const handleClick = useCallback(() => {
-    if (isLongPress.current || Date.now() < cooldownUntil.current) {
-      isLongPress.current = false;
-      return; // 롱프레스였거나 쿨다운 중이면 무시
+    // 롱프레스 뒤에 따라오는 click은 도착이 얼마나 늦든 한 번은 반드시 삼킨다
+    if (pendingClickSwallow.current) {
+      pendingClickSwallow.current = false;
+      return;
     }
+    if (Date.now() < cooldownUntil.current) return; // 곡 전환 직후의 잔여 입력
     // 얇은 리플 발사
     dispatchRipple({ x: pressCoords.current.x, y: pressCoords.current.y, thin: true });
     cycleVolume();
   }, [cycleVolume]);
+
+  // ── 곡 파일이 죽었을 때의 복구 ─────────────────────────────────────
+  // 곡 하나가 404거나 디코드에 실패하면 지금까지는 재생이 조용히 영영 멈췄다.
+  // 훅의 공개 API(skipToNextTrack)만으로 다음 곡으로 넘겨 복구한다 — 곡 인덱스
+  // 전진·시각 테마 전환·페이드가 전부 훅 안에서 한 경로로 처리되기 때문이다.
+  /** 연속 재생 실패 횟수 — 목록이 통째로 깨졌을 때 무한 스킵을 막는 카운터 */
+  const trackFailStreak = useRef(0);
+
+  const handleTrackPlaying = useCallback(() => {
+    trackFailStreak.current = 0; // 한 곡이라도 실제로 소리가 났으면 연속 실패는 리셋
+  }, []);
+
+  const handleTrackError = useCallback(() => {
+    const audio = audioRef.current;
+    // src를 아직 넣지 않은 상태의 스퓨리어스 error는 무시한다
+    if (!audio || !audio.src) return;
+    const code = audio.error?.code;
+    // error 객체 없이 error 이벤트만 날아오는 브라우저가 있다. 그걸 실패로 읽으면
+    // 평범한 src 교체 한 번이 스킵 → 또 교체 → 또 스킵으로 번져 리플과 시각 테마가
+    // 줄줄이 터진다. 진짜 MediaError가 붙어 있을 때만 실패로 본다.
+    if (code === undefined) return;
+    // src 교체로 이전 로드가 취소된 것(ABORTED)도 실패가 아니다 — 스킵 연타에서 정상 발생
+    if (code === MediaError.MEDIA_ERR_ABORTED) return;
+    // 소리가 한 번도 나지 않은 채 연속 실패하면 몇 곡 만에 멈춘다 — 목록이 통째로
+    // 깨졌을 때 플레이리스트 전체를 훑으며 스킵하지 않게 하는 상한이다
+    if (trackFailStreak.current >= MAX_TRACK_FAIL_SKIPS) return;
+    trackFailStreak.current++;
+    // 곡 전환 리플은 볼륨 버튼에서 나가게 한다 — 롱프레스 스킵과 같은 자리라
+    // 갑자기 화면 한복판에서 터지는 맥락 없는 리플이 되지 않는다
+    const rect = volumeBtnRef.current?.getBoundingClientRect();
+    skipToNextTrack(
+      rect ? rect.left + rect.width / 2 : window.innerWidth / 2,
+      rect ? rect.top + rect.height / 2 : window.innerHeight / 2,
+    );
+  }, [audioRef, skipToNextTrack]);
 
   // ── 롱프레스 유도 시연 ──────────────────────────────────────────────
   // 음악이 실제로 나오는 중이고(음소거·정지면 무의미) 한 곡을 어느 정도 들었을 때만,
@@ -178,9 +273,12 @@ function HomeInner() {
       headers: { "ngrok-skip-browser-warning": "1" },
     })
       .then((res) => (res.ok ? res.json() : Promise.reject()))
-      .then((data) => setViewCount(data.viewCount))
-      .catch((err: unknown) => {
-        if (!(err instanceof DOMException && err.name === "AbortError")) setViewCount(0);
+      .then((data: { viewCount?: unknown }) => {
+        if (typeof data.viewCount === "number") setViewCount(data.viewCount);
+      })
+      .catch(() => {
+        // 실패는 '0회'가 아니라 '모름'이다 — -1 센티널을 그대로 둬서 표시 자체를
+        // 하지 않는다. 예전엔 여기서 0을 넣어 일시적 실패에 "Total 0 views"가 떴다.
       });
     return () => controller.abort();
   }, []);
@@ -192,7 +290,9 @@ function HomeInner() {
   useEffect(() => {
     // 리플 생성만 빈도 제한한다 — 오디오 그래프/재생 동의 처리는 매번 그대로 수행
     const fireMiniRipple = (x: number, y: number) => {
-      if (isLongPress.current || Date.now() < cooldownUntil.current) return;
+      // 곡 전환 리플 직후의 중복만 막는다. 조건이 '시각' 하나뿐이라 이벤트가 유실돼도
+      // 저절로 풀린다 — 리플이 영구히 막히는 상태 자체를 없앤 것이 요점이다.
+      if (Date.now() < cooldownUntil.current) return;
       const now = Date.now();
       if (now - lastMiniRippleAt.current < MINI_RIPPLE_MIN_MS) return;
       lastMiniRippleAt.current = now;
@@ -231,52 +331,100 @@ function HomeInner() {
   }, [ensureAudioGraph, resumeIfAutoMuted]);
 
   // ── 섹션 선택 / 닫기 ─────────────────────────────────────────────
-  const handleSelect = useCallback((index: number) => {
-    setSelectedIndex((prev) => (prev === index ? null : index));
+  const panelRef          = useRef<HTMLElement>(null);
+  const restoreFocus      = useRef(false);
+  const prevSelectedIndex = useRef<number | null>(null);
+
+  /**
+   * 패널 안에 펼칠 섹션을 갈아끼운다(null이면 접는다). 펼쳐지는 섹션만 새 세대로 마운트된다.
+   * shownIndex를 쓰는 유일한 통로라 ref 사본이 항상 정확하다 — 이 사본으로 멱등성을
+   * 보장한다: 패널 상태 전이가 onAnimationComplete에 걸려 있어, 콜백이 한 번 더 오더라도
+   * 같은 섹션을 두 번 리마운트해서는 안 된다.
+   */
+  const shownIndexRef = useRef<number | null>(null);
+  const revealSection = useCallback((index: number | null) => {
+    if (shownIndexRef.current === index) return;
+    shownIndexRef.current = index;
+    setShownIndex(index);
+    if (index === null) return;
+    setMountSeq((prev) => prev.map((seq, i) => (i === index ? seq + 1 : seq)));
   }, []);
 
-  // Escape(키보드)로 닫으면 포커스를 원래 탭 버튼으로 돌려준다 (다이얼로그 관례)
-  const closedViaKeyboard = useRef(false);
-  const prevSelectedIndex = useRef<number | null>(null);
+  const handleSelect = useCallback((index: number) => {
+    const next = selectedIndex === index ? null : index;
+    setSelectedIndex(next);
+    if (next === null) return; // 닫힘 연출이 끝나면 handlePanelSettled가 뒷정리한다
+    // 대기 상태였으면 곧바로 펼치고, 다른 탭이 떠 있으면 그 탭의 닫힘 연출을 기다린다
+    if (shownIndex === null) revealSection(index);
+  }, [revealSection, selectedIndex, shownIndex]);
+
+  // Escape/닫기 버튼으로 닫으면 포커스를 원래 탭 버튼으로 돌려준다 (다이얼로그 관례).
+  // 닫기 버튼은 그대로 두면 자신이 사라지며 포커스가 <body>로 떨어진다.
+  const closeSection = useCallback(() => {
+    restoreFocus.current = prevSelectedIndex.current !== null;
+    setSelectedIndex(null);
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        closedViaKeyboard.current = true;
-        setSelectedIndex(null);
-      }
+      if (e.key === "Escape") closeSection();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [closeSection]);
 
   useEffect(() => {
-    if (selectedIndex === null && prevSelectedIndex.current !== null && closedViaKeyboard.current) {
+    if (selectedIndex === null && prevSelectedIndex.current !== null && restoreFocus.current) {
       document
         .querySelector<HTMLButtonElement>(`[data-dock-tab="${prevSelectedIndex.current}"]`)
         ?.focus({ preventScroll: true });
     }
-    closedViaKeyboard.current = false;
+    restoreFocus.current = false;
     prevSelectedIndex.current = selectedIndex;
   }, [selectedIndex]);
 
-  const panelOpen    = selectedIndex !== null;
-  const isGalleryTab = selectedIndex === 4;
+  const panelOpen = selectedIndex !== null;
+  /** 지금 보여주기로 한 섹션과 사용자가 고른 섹션이 일치할 때만 패널이 열려 있다 */
+  const open  = panelOpen && shownIndex === selectedIndex;
+  const shown = shownIndex === null ? null : SECTIONS[shownIndex];
+  /**
+   * 펼쳐 놓은 섹션이 없으면 패널을 display:none으로 접는다 — 이게 '대기 화면'이자
+   * 크롤러가 읽는 상태다. 접혀 있어도 DOM에는 다섯 섹션이 전부 남지만 레이아웃·이미지
+   * 지연로드 비용은 0이 된다. 별도 상태로 두지 않는 이유: 접힘은 '펼친 섹션이 없다'와
+   * 언제나 같은 뜻이라, 상태를 하나 더 두면 둘이 어긋날 길만 열린다.
+   */
+  const collapsed = shownIndex === null;
+  /** 액자(상단 페이드 마스크·연락처·조회수)를 두를지 — 갤러리만 예외 */
+  const framed = shown === null ? true : shown.framed;
 
-  // 패널이 열리면 스크롤 컨테이너에 포커스를 줘서 키보드(방향키/PageDown)로도 스크롤되게 한다
-  const focusPanel = useCallback((el: HTMLElement | null) => {
-    el?.focus({ preventScroll: true });
-  }, []);
+  // 섹션이 바뀔 때마다 맨 위에서 시작하고, 스크롤 컨테이너에 포커스를 줘서
+  // 키보드(방향키/PageDown)로도 스크롤되게 한다.
+  useEffect(() => {
+    const el = panelRef.current;
+    if (shownIndex === null || !el) return;
+    el.scrollTop = 0;
+    el.focus({ preventScroll: true });
+  }, [shownIndex]);
 
-  // 요소를 메모이즈해 HomeInner가 리렌더돼도(볼륨 버튼, 힌트 등) 열린 섹션의
-  // 서브트리 전체가 재조정되지 않게 한다. 언어 전환은 컨텍스트라 그대로 전파된다.
-  const pages = useMemo(() => [
-    <AboutSection    key="about"    />,
-    <PerkSection     key="perk"     />,
-    <ProjectsSection key="projects" onExternalNav={muteForExternalNav} />,
-    <HobbySection    key="hobby"    />,
-    <GallerySection  key="gallery"  />,
-  ], [muteForExternalNav]);
+  // 열림/닫힘 연출이 끝난 순간. 닫힘 연출이 끝났다면 기다리던 다음 탭으로 갈아끼워
+  // 다시 열고(탭 전환), 기다리는 탭이 없으면 접어서 대기 상태로 되돌린다 — 두 경우가
+  // revealSection 한 번으로 표현된다(selectedIndex가 null이면 그게 곧 '접기'다).
+  const handlePanelSettled = useCallback(() => {
+    if (open) return;
+    revealSection(selectedIndex);
+  }, [open, revealSection, selectedIndex]);
+
+  // 섹션 요소는 id로 매핑한다 — '갤러리는 5번째'처럼 위치에 사실을 인코딩하지 않고,
+  // id를 빠뜨리면 컴파일이 깨진다. 요소를 메모이즈해 HomeInner가 리렌더돼도
+  // (볼륨 버튼, 힌트 등) 다섯 섹션 서브트리가 통째로 재조정되지 않게 한다.
+  // 언어 전환은 컨텍스트라 그대로 전파된다.
+  const sectionNodes = useMemo<Record<SectionId, ReactNode>>(() => ({
+    about:    <AboutSection />,
+    perk:     <PerkSection />,
+    projects: <ProjectsSection onExternalNav={muteForExternalNav} />,
+    hobby:    <HobbySection />,
+    gallery:  <GallerySection />,
+  }), [muteForExternalNav]);
 
   return (
     <motion.div
@@ -287,12 +435,13 @@ function HomeInner() {
     >
       <AsciiBackground />
 
-      <audio ref={audioRef} onEnded={onTrackEnded} />
+      <audio ref={audioRef} onEnded={onTrackEnded} onError={handleTrackError} onPlaying={handleTrackPlaying} />
 
       <LanguageSwitcher />
 
       {/* 볼륨 버튼: 클릭=음소거 토글, 롱프레스=다음 곡 (링이 차오르면 발동) */}
       <motion.button
+        ref={volumeBtnRef}
         onClick={handleClick}
         onMouseDown={(e) => {
           if (e.button === 0) handlePressStart(e.clientX, e.clientY);
@@ -305,7 +454,11 @@ function HomeInner() {
         }}
         onTouchEnd={handlePressEnd}
         onTouchCancel={handlePressEnd}
+        // 키보드 활성화(Enter/Space)는 누름 없이 click만 온다 — 앞선 롱프레스가 남긴
+        // 표식을 여기서 지워, 삼켜야 할 합성 click이 아닌 진짜 조작이 먹히지 않는 일을 막는다
+        onKeyDown={() => { pendingClickSwallow.current = false; }}
         onContextMenu={(e) => e.preventDefault()}
+        // TODO(i18n): 로케일에 a11y 네임스페이스가 생기면 t.a11y.volumeButton으로 교체
         aria-label="Cycle volume (hold to skip track)"
         // 시연 중엔 유령 손가락이 누르는 것처럼 살짝 눌렸다가, 링이 완성되면 톡 튀어오른다
         animate={
@@ -411,35 +564,61 @@ function HomeInner() {
           )}
         </AnimatePresence>
 
-        {/* 섹션 패널: 탭 선택 시에만 화면을 덮는 스크롤 영역 */}
-        <AnimatePresence mode="wait">
-          {panelOpen && (
-            <motion.section
-              key={selectedIndex}
-              ref={focusPanel}
-              tabIndex={-1}
-              initial={{ opacity: 0, y: 28 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 28 }}
-              transition={{ duration: 0.35, ease: "easeInOut" }}
-              className="fixed inset-0 z-30 overflow-y-auto overscroll-contain bg-[#0a0a0a]/45 focus:outline-none"
-              style={isGalleryTab ? undefined : {
-                maskImage:       "linear-gradient(to bottom, transparent 0px, black 40px)",
-                WebkitMaskImage: "linear-gradient(to bottom, transparent 0px, black 40px)",
-              }}
-            >
-              <div className="min-h-full pt-16 pb-[calc(7rem+env(safe-area-inset-bottom))]">
-                {pages[selectedIndex]}
-                {!isGalleryTab && <ContactFooter />}
-                {!isGalleryTab && viewCount !== -1 && (
-                  <div className="w-full py-4 text-center">
-                    <p className="text-gray-400 text-sm">Total {viewCount} views</p>
-                  </div>
-                )}
+        {/*
+          섹션 패널.
+          예전엔 탭을 눌러야 섹션이 마운트됐고, 그래서 프리렌더 HTML에 본문이 한 글자도
+          담기지 않았다(가시 텍스트 56자, <a> 0개, <h2> 0개). 이제 다섯 섹션이 항상
+          DOM에 있고 — 탭/아코디언과 같은 형태라 모바일 우선 색인에서 정상 색인된다 —
+          닫혀 있는 동안엔 display:none으로 통째로 접혀 레이아웃·이미지 지연로드 비용이
+          0이 된다.
+
+          연출은 패널 하나를 왕복시켜 예전과 동일하게 유지한다. 탭을 바꾸면 shownIndex가
+          곧바로 따라오지 않고 닫힘 연출이 끝난 뒤 교체되므로, AnimatePresence
+          mode="wait"의 '나갔다 들어오기'가 그대로 재현된다.
+        */}
+        <motion.section
+          ref={panelRef}
+          id={SECTION_PANEL_ID}
+          // <section>에 접근명을 주면 그 자체로 region 랜드마크다 — role은 중복이라 넣지 않는다.
+          // 열려 있을 때의 이름은 그 탭의 라벨이다(기존 번역 재사용).
+          aria-label={shownIndex === null ? undefined : t.tabs[shownIndex]}
+          tabIndex={-1}
+          initial={{ opacity: 0, y: 28 }}
+          animate={{ opacity: open ? 1 : 0, y: open ? 0 : 28 }}
+          transition={{ duration: PANEL_ANIM_S, ease: "easeInOut" }}
+          onAnimationComplete={handlePanelSettled}
+          className={`fixed inset-0 z-30 overflow-y-auto overscroll-contain bg-[#0a0a0a]/45 focus:outline-none ${
+            collapsed ? "hidden" : ""
+          } ${open ? "" : "pointer-events-none"}`}
+          // 패널이 살아남으므로 액자를 뗄 땐(갤러리) 속성을 지우는 대신 none으로 덮어쓴다
+          // — 예전엔 탭마다 패널이 새로 마운트돼 이 문제가 없었다
+          style={{
+            maskImage:       framed ? PANEL_MASK : "none",
+            WebkitMaskImage: framed ? PANEL_MASK : "none",
+          }}
+        >
+          <div className="min-h-full pt-16 pb-[calc(7rem+env(safe-area-inset-bottom))]">
+            {SECTIONS.map((section, index) => (
+              // 접혀 있을 때(대기 화면)는 다섯 섹션이 전부 흐름에 남는다 — 프리렌더
+              // HTML과 크롤러가 보는 DOM이 바로 이 상태다. 펼쳐져 있으면 고른 섹션
+              // 하나만 남기고 나머지는 hidden으로 접근성 트리에서도 빼낸다.
+              <div
+                key={`${section.id}-${mountSeq[index]}`}
+                hidden={!collapsed && index !== shownIndex}
+              >
+                {sectionNodes[section.id]}
               </div>
-            </motion.section>
-          )}
-        </AnimatePresence>
+            ))}
+            {/* 연락처·조회수는 예전과 똑같이 '섹션이 실제로 열려 있고 액자가 있을 때'만
+                렌더한다 — 대기 상태까지 넣으면 전화번호가 정적 HTML에 새로 노출된다 */}
+            {shown !== null && framed && <ContactFooter />}
+            {shown !== null && framed && viewCount !== -1 && (
+              <div className="w-full py-4 text-center">
+                <p className="text-gray-400 text-sm">Total {viewCount} views</p>
+              </div>
+            )}
+          </div>
+        </motion.section>
       </main>
 
       {/* 패널 닫기 버튼 */}
@@ -447,7 +626,8 @@ function HomeInner() {
         {panelOpen && (
           <motion.button
             key="close"
-            onClick={() => setSelectedIndex(null)}
+            onClick={closeSection}
+            // TODO(i18n): 로케일에 a11y 네임스페이스가 생기면 t.a11y.closeSection으로 교체
             aria-label="Close section"
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}

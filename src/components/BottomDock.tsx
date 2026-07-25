@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { useLanguage } from "@/i18n";
+import { SECTIONS, SECTION_PANEL_ID } from "@/lib/sections";
 
 /**
  * 화면 하단에 항상 떠 있는 네온 사이버펑크 네비 바.
@@ -10,7 +11,10 @@ import { useLanguage } from "@/i18n";
  *   천천히 숨쉬다 네온 특유의 짧은 깜빡임을 섞으며 존재를 알린다(globals.css).
  * - 선택된 탭 뒤로 발광 캡슐이 slide 하며 따라온다(framer layoutId).
  * - 모바일 하단 브라우저바/제스처 영역을 피하려 safe-area 만큼 띄워 올린다.
- * - data-dock-tab 속성은 page.tsx가 Escape 후 포커스를 되돌릴 때 쓴다.
+ * - data-dock-tab 속성은 page.tsx가 Escape/닫기 후 포커스를 되돌릴 때 쓴다.
+ * - 탭은 링크가 아니라 같은 패널 하나를 여닫는 토글이다. 그래서 '현재 문서'를 뜻하는
+ *   aria-current="page"가 아니라 디스클로저 시맨틱(aria-expanded + aria-controls)으로 알린다.
+ * - 섹션 목록의 진실은 @/lib/sections이고, 라벨만 로케일에서 같은 인덱스로 가져온다.
  */
 
 interface BottomDockProps {
@@ -23,6 +27,7 @@ export default function BottomDock({ selectedIndex, onSelect }: BottomDockProps)
 
   return (
     <nav
+      // TODO(i18n): 로케일에 a11y 네임스페이스가 생기면 t.a11y.sectionNav로 교체
       aria-label="Sections"
       className="fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 pointer-events-none"
       style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0.85rem)" }}
@@ -34,14 +39,15 @@ export default function BottomDock({ selectedIndex, onSelect }: BottomDockProps)
         className="pointer-events-auto"
       >
         <div className="dock-neon relative flex items-center gap-0.5 rounded-2xl bg-gray-950/70 px-1.5 py-1.5 backdrop-blur-xl">
-          {t.tabs.map((label, index) => {
+          {SECTIONS.map((section, index) => {
             const isSelected = selectedIndex === index;
             return (
               <button
-                key={index}
+                key={section.id}
                 data-dock-tab={index}
                 onClick={() => onSelect(index)}
-                aria-current={isSelected ? "page" : undefined}
+                aria-expanded={isSelected}
+                aria-controls={SECTION_PANEL_ID}
                 className={`relative rounded-xl px-2.5 sm:px-3.5 py-2 text-[13px] sm:text-sm whitespace-nowrap transition-colors duration-200 ${
                   isSelected ? "text-white" : "text-gray-400 hover:text-cyan-200"
                 }`}
@@ -58,7 +64,7 @@ export default function BottomDock({ selectedIndex, onSelect }: BottomDockProps)
                     isSelected ? "drop-shadow-[0_0_8px_rgba(34,211,238,0.85)]" : ""
                   }`}
                 >
-                  {label}
+                  {t.tabs[index]}
                 </span>
               </button>
             );
