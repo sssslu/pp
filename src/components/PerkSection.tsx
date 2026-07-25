@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { motion, useReducedMotion, Variants } from "framer-motion";
 import { useLanguage } from "@/i18n";
 
@@ -13,6 +13,9 @@ const SKILLS = [
   "TypeScript", "Firebase Auth"
 ];
 const SKILL_COUNT = SKILLS.length + 1; // + 로케일에서 오는 DB 항목
+
+/** 스택이 눈앞에 머문 시간이 이만큼 쌓이면 저절로 삼켜진다 */
+const READ_MS = 4000;
 
 // ── 8비트 연출 타임라인(초): 피격 플래시 → 픽셀 워프 흡입 → 충격파 → 홀 붕괴 → AI 탄생
 // 모든 애니메이션이 유한하다 — 연출이 끝나면 정적 요소만 남아 프레임 비용이 0이 된다.
@@ -62,6 +65,75 @@ export default function PerkSection() {
     setIsRevealed(true);
   };
 
+  // 아래 타이머가 항상 최신 engage를 부르게 한다 — engage는 매 렌더 새로 만들어지는데
+  // 타이머 이펙트는 isRevealed에만 반응해야 하므로(카운트가 리셋되면 안 된다) 직접 못 잡는다.
+  const engageRef = useRef(engage);
+  useEffect(() => { engageRef.current = engage; });
+
+  // 4초가 지나면 저절로 발동한다 — 발동을 사람 손에 맡기지 않는다.
+  // hover냐 tap이냐를 두고 "읽기도 전에 사라진다" 와 "아무도 발동을 못 한다" 사이에서
+  // 고르던 문제가 통째로 사라진다. 모두가 4초를 읽고, 그 다음 삼켜진다.
+  //
+  // 세는 기준이 '마운트'가 아니라 '스택이 실제로 눈앞에 있는 동안'인 이유가 셋 있다.
+  //  · 다섯 섹션은 항상 마운트돼 있다(page.tsx의 접힘 패널 — SSR 본문 노출 때문이다).
+  //    마운트 시점부터 세면 대기 화면에서 4초가 지나가 버려, 정작 능력치 탭을 연
+  //    방문자는 이미 비어 있는 무대를 본다.
+  //  · 스택은 강점 아래라 좁은 화면에선 탭을 열어도 처음엔 화면 밖이다. 탭을 여는
+  //    순간부터 세면 강점을 읽는 사이에 삼켜진다.
+  //  · 브라우저 탭이 백그라운드인 동안 흘러간 4초는 읽은 4초가 아니다.
+  // 앞의 둘은 IntersectionObserver가, 나머지는 visibilitychange가 막는다.
+  // (모션 감소 설정이어도 4초는 그대로 센다 — 이 4초는 연출이 아니라 읽는 시간이고,
+  //  건너뛸 것은 날아가는 과정뿐이다. 그건 itemVariants가 이미 처리한다.)
+  useEffect(() => {
+    if (isRevealed) return;
+    const cont = containerRef.current;
+    if (!cont) return;
+
+    let onScreen = false;
+    let left = READ_MS;      // 아직 채워야 할 시간
+    let startedAt = 0;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const run = () => {
+      if (timer !== null || !onScreen || document.hidden) return;
+      startedAt = Date.now();
+      timer = setTimeout(() => {
+        timer = null;
+        engageRef.current();
+      }, left);
+    };
+    const hold = () => {
+      if (timer === null) return;
+      clearTimeout(timer);
+      timer = null;
+      left = Math.max(0, left - (Date.now() - startedAt));
+    };
+
+    // threshold: 스택 무대가 어느 정도 들어와야 '읽고 있다'로 친다.
+    // 화면 밖으로 나가면 멈추고, 다시 들어오면 남은 시간부터 이어 센다.
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        onScreen = entry.isIntersecting;
+        if (onScreen) run();
+        else hold();
+      },
+      { threshold: 0.3 },
+    );
+    io.observe(cont);
+
+    const onVisibility = () => {
+      if (document.hidden) hold();
+      else run();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      hold();
+      io.disconnect();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [isRevealed]);
+
   // 스킬 흡입: 흰색 피격 플래시 → 5단계 픽셀 점프로 홀까지 워프하며 계단식으로 작아진다.
   // transform(x/y/scale)과 opacity만 연속 애니메이션(컴포지터 처리)하고, blur·글로우는 쓰지 않는다.
   // 색은 스냅 이징이라 총 3번만 바뀐다 (매 프레임 리페인트 없음).
@@ -103,16 +175,12 @@ export default function PerkSection() {
             {t.perk.strengths.map((s) => `- ${s}`).join("\n")}
           </p>
         </div>
-        {/* 포인터 발동 영역은 h2까지 포함한 '스택 섹션 전체'다 — 목록만 노리면
-            발동 면적이 좁아 농담을 못 보고 지나가는 방문자가 생긴다.
-            · onMouseEnter 유지: 데스크톱 hover에는 스크롤과의 모호함이 없고,
-              발동되지 않는 농담은 농담이 아니다.
-            · onTouchStart 제거: 패널이 overflow-y-auto라 스크롤 시작 터치와 구분되지 않는다.
-              손가락을 대자마자 스택이 사라져 버리면 읽어 본 적도 없는 농담이 된다.
-              터치에선 명시적인 탭(onClick)만 발동으로 친다. */}
+        {/* 클릭은 '4초를 안 기다리고 넘긴다'는 뜻으로만 남긴다 — 발동 자체는 위 타이머가 맡는다.
+            onMouseEnter는 뺐다: 자동 발동이 생긴 이상 hover는 발동률을 올리는 게 아니라
+            읽는 도중 마우스가 스쳤다는 이유로 셋업을 빼앗을 뿐이다.
+            onTouchStart도 없다 — 패널이 overflow-y-auto라 스크롤 시작 터치와 구분되지 않는다. */}
         <div
           className="py-6 relative group cursor-pointer"
-          onMouseEnter={engage}
           onClick={engage}
         >
           <h2 id={stackTitleId} className="text-xl font-bold text-white mb-4 transition-colors duration-300">{t.perk.stackTitle}</h2>
