@@ -154,6 +154,7 @@ having certified 100+ Korean and foreign students.
       "cert-diploma": "Graduation certificate",
       "cert-military": "Certificate of military service",
       "cert-afi": "Advanced Freediver Instructor certification",
+      "cert-aida": "AIDA Freediving Instructor certification",
       "cert-blsd": "BLSD Instructor certification",
       "cert-cmas": "Earned CMAS international judge certification",
       "cert-misc-dive": "Other underwater certifications",

@@ -41,7 +41,7 @@ export type GalleryCategoryId =
  */
 export type GalleryItemId =
   | "school-idphoto" | "school-young" | "school-steam" | "school-seoultech" | "school-grad"
-  | "cert-diploma" | "cert-military" | "cert-afi" | "cert-blsd" | "cert-cmas" | "cert-misc-dive" | "cert-opic"
+  | "cert-diploma" | "cert-military" | "cert-afi" | "cert-aida" | "cert-blsd" | "cert-cmas" | "cert-misc-dive" | "cert-opic"
   | "mil-enlist" | "mil-hmmwv" | "mil-figuerra" | "mil-pmo" | "mil-m9" | "mil-m4"
   | "mil-me" | "mil-almanza" | "mil-agosto" | "mil-fierce"
   | "work-taehwa-nh" | "work-taehwa" | "work-quit"
@@ -273,6 +273,7 @@ export const ko: Translations = {
       "cert-diploma": "졸업 증명서",
       "cert-military": "병적 증명서",
       "cert-afi": "어드밴스드 프리다이버 강사 자격",
+      "cert-aida": "AIDA 프리다이빙 강사 자격",
       "cert-blsd": "BLSD 강사 자격",
       "cert-cmas": "CMAS 국제 심판관 자격 취득",
       "cert-misc-dive": "기타 수중 자격",

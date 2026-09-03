@@ -70,6 +70,7 @@ const galleryItems: readonly GalleryItemData[] = [
 
     // Certificates
     { id: "cert-afi", url: "https://i.imgur.com/Ug9UdIt.png", category: "cert" },
+    { id: "cert-aida", url: "/images/aida-instructor.png", category: "cert" },
     { id: "cert-blsd", url: "https://i.imgur.com/qpCviqY.png", category: "cert" },
     { id: "cert-cmas", url: "https://i.imgur.com/bjNwqy2.png", category: "cert" },
     { id: "cert-misc-dive", url: "https://i.imgur.com/OOoVMNK.png", category: "cert" },
