@@ -14,12 +14,13 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://slupark.com"),
-  title: "박슬우 (Slu Park) | slupark — Portfolio",
+  title: "박슬우 (Slu Park) | slupark — AI Quant",
   description:
-    "박슬우(Slu Park)의 개인 포트폴리오 slupark.com — 프로젝트, 경력, 취미를 소개합니다. Personal portfolio of Slu Park (slupark, slu): projects, career, and hobbies.",
+    "박슬우(Slu Park) — AI Quant로 활동 중입니다. 개인 포트폴리오 slupark.com에서 프로젝트, 경력, 취미를 소개합니다. Slu Park (slupark, slu) is an AI Quant. Personal portfolio: projects, career, and hobbies.",
   keywords: [
     "박슬우", "박 슬우", "슬우", "Slu Park", "slupark", "slu",
-    "포트폴리오", "portfolio", "개발자", "developer",
+    "AI Quant", "AI 퀀트", "퀀트", "quant",
+    "포트폴리오", "portfolio",
   ],
   authors: [{ name: "박슬우 (Slu Park)", url: "https://slupark.com" }],
   creator: "박슬우 (Slu Park)",
@@ -34,9 +35,9 @@ export const metadata: Metadata = {
     siteName: "slupark",
     locale: "ko_KR",
     alternateLocale: "en_US",
-    title: "박슬우 (Slu Park) | slupark — Portfolio",
+    title: "박슬우 (Slu Park) | slupark — AI Quant",
     description:
-      "박슬우(Slu Park)의 개인 포트폴리오 — 프로젝트, 경력, 취미. Personal portfolio of Slu Park.",
+      "AI Quant 박슬우(Slu Park)의 개인 포트폴리오 — 프로젝트, 경력, 취미. Personal portfolio of Slu Park, AI Quant.",
     url: "https://slupark.com",
     images: [
       {
@@ -49,9 +50,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "박슬우 (Slu Park) | slupark — Portfolio",
+    title: "박슬우 (Slu Park) | slupark — AI Quant",
     description:
-      "박슬우(Slu Park)의 개인 포트폴리오 — 프로젝트, 경력, 취미. Personal portfolio of Slu Park.",
+      "AI Quant 박슬우(Slu Park)의 개인 포트폴리오 — 프로젝트, 경력, 취미. Personal portfolio of Slu Park, AI Quant.",
     images: ["https://slupark.com/images/front.png"],
   },
   robots: {
@@ -79,7 +80,16 @@ const jsonLd = {
       url: "https://slupark.com",
       image: "https://slupark.com/images/front.png",
       email: "mailto:slu@kakao.com",
-      jobTitle: "Software Developer",
+      // 직함은 '현재 활동' 하나만 밝힌다. 여기에 소속(worksFor)을 비워 두는 것도 의도다 —
+      // 사이트가 소속을 선언하지 않으면 구글은 외부 플랫폼 프로필을 소속으로 끌어다 쓸 근거가
+      // 약해진다. 지난 이력은 About 본문에 연도와 함께 남아 있으니 여기서 반복하지 않는다.
+      jobTitle: "AI Quant",
+      description:
+        "AI Quant — AI와 자동화를 활용한 퀀트 트레이딩 시스템을 만들고 운영합니다. Builds and runs quant trading systems with AI and automation.",
+      hasOccupation: {
+        "@type": "Occupation",
+        name: "AI Quant",
+      },
       knowsLanguage: ["ko", "en"],
       alumniOf: { "@id": "https://slupark.com/#seoultech" },
       // 인물 엔티티를 외부 프로필과 잇는 고리 — 구글이 "이 사람"의 동일성을

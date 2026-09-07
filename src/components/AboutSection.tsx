@@ -163,9 +163,9 @@ export default function AboutSection() {
               </p>
               <p>
                 {isEn ? (
-                  <>- 2025~ <RedactedItem text="Crypto Quant" /></>
+                  <>- 2025~ <RedactedItem text="AI Quant" /></>
                 ) : (
-                  <>- 2025~<RedactedItem text="암호화폐 퀀트" /></>
+                  <>- 2025~<RedactedItem text="AI Quant" /></>
                 )}
               </p>
             </RevealGroup>

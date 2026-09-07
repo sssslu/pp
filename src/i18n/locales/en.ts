@@ -60,12 +60,15 @@ export const en: Translations = {
         url: "https://www.rallymaster.app",
       },
       {
-        title: "Feed the Black Hole",
-        description: "Feed the black hole to support slu. A beautiful sponsorship page.",
-        url: "https://sleekmoodkr.com",
+        title: "WinPiano",
+        description:
+          "A Windows-based, zero-latency piano that makes music production effortless.",
+        url: "https://www.youtube.com/@beeeflat",
       },
     ],
     descriptions: {
+      "Feed the Black Hole":
+        "Feed the black hole to support slu. A beautiful sponsorship page. (sleekmoodkr.com)",
       "nbidiaGLM":
         "A chatbot harness powered by an LLM served through NVIDIA.",
       "TSLAhunter":

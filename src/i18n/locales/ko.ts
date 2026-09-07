@@ -177,12 +177,15 @@ export const ko: Translations = {
         url: "https://www.rallymaster.app",
       },
       {
-        title: "블랙홀 먹이주기",
-        description: "블랙홀에 먹이를 줘 slu 를 후원해주세요. 아름다운 후원페이지",
-        url: "https://sleekmoodkr.com",
+        title: "WinPiano",
+        description:
+          "편리한 음악 제작이 가능한 윈도우기반 무딜레이 피아노입니다.",
+        url: "https://www.youtube.com/@beeeflat",
       },
     ],
     descriptions: {
+      "블랙홀 먹이주기":
+        "블랙홀에 먹이를 줘 slu 를 후원해주세요. 아름다운 후원페이지. (sleekmoodkr.com)",
       "nbidiaGLM":
         "엔비디아에서 제공하는 LLM을 사용한 챗봇 하네스입니다.",
       "TSLAhunter":
