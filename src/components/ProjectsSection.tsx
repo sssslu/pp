@@ -3,6 +3,7 @@
 import { motion, useMotionTemplate, useMotionValue } from "framer-motion";
 import { MouseEvent, TouchEvent } from "react";
 import { useLanguage } from "@/i18n";
+import SluBrand from "./SluBrand";
 
 interface ProjectsSectionProps {
   /** 홍보 카드로 외부 사이트를 열기 직전 호출 — BGM을 꺼서 소리가 겹치지 않게 한다 */
@@ -42,6 +43,15 @@ export default function ProjectsSection({ onExternalNav }: ProjectsSectionProps)
         className="pointer-events-none absolute -inset-px rounded-xl opacity-0 group-hover:opacity-100 transition duration-300 z-20"
         style={{ background: spotlightBackground }}
       />
+      {/* 카드 묶음의 머리 — 이 프로젝트들을 누가 만들었는지 밝히는 자리.
+          아래 얇은 선까지가 한 덩어리로 읽히게 두었다. */}
+      <div className="relative z-10 mb-5 flex flex-col items-center">
+        <SluBrand variant="lockup" size={62} />
+        <p className="mt-3 text-[11px] font-medium tracking-[0.18em] text-gray-500">
+          사업자 : 슬루컴패니
+        </p>
+        <div className="mt-4 h-px w-full max-w-xs bg-gradient-to-r from-transparent via-gray-700 to-transparent" />
+      </div>
       {/* 홍보 카드: 최상단에서 눈에 띄게 — 그라디언트 테두리 + 배지 + 호버 광택, 클릭 시 새 탭 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 relative z-10 mb-4">
         {t.projects.featured.map((p) => (
