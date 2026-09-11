@@ -14,12 +14,13 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://slupark.com"),
-  title: "박슬우 (Slu Park) | slupark — AI Quant",
+  title: "박슬우 (Slu Park) | slupark — Portfolio",
   description:
-    "박슬우(Slu Park) — AI Quant로 활동 중입니다. 개인 포트폴리오 slupark.com에서 프로젝트, 경력, 취미를 소개합니다. Slu Park (slupark, slu) is an AI Quant. Personal portfolio: projects, career, and hobbies.",
+    "박슬우(Slu Park)의 개인 포트폴리오 slupark.com — 프로젝트, 경력, 취미를 소개합니다. 슬루컴패니(SluCompany)를 운영합니다. Personal portfolio of Slu Park (slupark, slu): projects, career, and hobbies.",
   keywords: [
     "박슬우", "박 슬우", "슬우", "Slu Park", "slupark", "slu",
-    "AI Quant", "AI 퀀트", "퀀트", "quant",
+    "슬루컴패니", "SluCompany", "slucompany", "Slu Company",
+    "AI Quant",
     "포트폴리오", "portfolio",
   ],
   authors: [{ name: "박슬우 (Slu Park)", url: "https://slupark.com" }],
@@ -35,9 +36,9 @@ export const metadata: Metadata = {
     siteName: "slupark",
     locale: "ko_KR",
     alternateLocale: "en_US",
-    title: "박슬우 (Slu Park) | slupark — AI Quant",
+    title: "박슬우 (Slu Park) | slupark — Portfolio",
     description:
-      "AI Quant 박슬우(Slu Park)의 개인 포트폴리오 — 프로젝트, 경력, 취미. Personal portfolio of Slu Park, AI Quant.",
+      "박슬우(Slu Park) · 슬루컴패니(SluCompany)의 개인 포트폴리오 — 프로젝트, 경력, 취미. Personal portfolio of Slu Park.",
     url: "https://slupark.com",
     images: [
       {
@@ -50,9 +51,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "박슬우 (Slu Park) | slupark — AI Quant",
+    title: "박슬우 (Slu Park) | slupark — Portfolio",
     description:
-      "AI Quant 박슬우(Slu Park)의 개인 포트폴리오 — 프로젝트, 경력, 취미. Personal portfolio of Slu Park, AI Quant.",
+      "박슬우(Slu Park) · 슬루컴패니(SluCompany)의 개인 포트폴리오 — 프로젝트, 경력, 취미. Personal portfolio of Slu Park.",
     images: ["https://slupark.com/images/front.png"],
   },
   robots: {
@@ -80,16 +81,14 @@ const jsonLd = {
       url: "https://slupark.com",
       image: "https://slupark.com/images/front.png",
       email: "mailto:slu@kakao.com",
-      // 직함은 '현재 활동' 하나만 밝힌다. 여기에 소속(worksFor)을 비워 두는 것도 의도다 —
-      // 사이트가 소속을 선언하지 않으면 구글은 외부 플랫폼 프로필을 소속으로 끌어다 쓸 근거가
-      // 약해진다. 지난 이력은 About 본문에 연도와 함께 남아 있으니 여기서 반복하지 않는다.
+      // 현재 활동은 여기 한 번만 적는다. 예전엔 jobTitle·description·hasOccupation으로
+      // 같은 말을 세 번 했고 제목/설명까지 직함을 달고 있었다 — 구조화 데이터의 한 칸이면
+      // 구글이 읽는 데 충분하고, 그 이상은 사람 눈에 '내세우는' 문서로 보인다.
       jobTitle: "AI Quant",
-      description:
-        "AI Quant — AI와 자동화를 활용한 퀀트 트레이딩 시스템을 만들고 운영합니다. Builds and runs quant trading systems with AI and automation.",
-      hasOccupation: {
-        "@type": "Occupation",
-        name: "AI Quant",
-      },
+      // 소속은 본인 사업자 하나뿐이다. 예전엔 이 칸을 일부러 비웠는데, 빈 칸은 구글에게
+      // '어디선가 추론해도 좋다'는 신호였다 — 외부 플랫폼 프로필이 소속으로 끌려 들어오던
+      // 경로가 바로 그것이다. 1차 출처가 정답으로 칸을 채우는 쪽이 비워 두는 것보다 강하다.
+      worksFor: { "@id": "https://slupark.com/#slucompany" },
       knowsLanguage: ["ko", "en"],
       alumniOf: { "@id": "https://slupark.com/#seoultech" },
       // 인물 엔티티를 외부 프로필과 잇는 고리 — 구글이 "이 사람"의 동일성을
@@ -103,6 +102,14 @@ const jsonLd = {
       sameAs: [
         "https://www.youtube.com/@%EA%B3%BC%ED%95%99%EC%AA%BC%EA%B0%80%EB%A6%AC",
       ],
+    },
+    {
+      "@type": "Organization",
+      "@id": "https://slupark.com/#slucompany",
+      name: "SluCompany",
+      alternateName: ["슬루컴패니", "slucompany", "Slu Company"],
+      url: "https://slupark.com",
+      founder: { "@id": "https://slupark.com/#person" },
     },
     {
       // AboutSection·i18n 캡션에 이미 있는 학력 사실을 엔티티로만 승격한다.

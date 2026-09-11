@@ -48,7 +48,7 @@ export default function ProjectsSection({ onExternalNav }: ProjectsSectionProps)
       <div className="relative z-10 mb-5 flex flex-col items-center">
         <SluBrand variant="lockup" size={62} />
         <p className="mt-3 text-[11px] font-medium tracking-[0.18em] text-gray-500">
-          사업자 : 슬루컴패니
+          사업자 : 슬루컴패니 (SluCompany)
         </p>
         <div className="mt-4 h-px w-full max-w-xs bg-gradient-to-r from-transparent via-gray-700 to-transparent" />
       </div>
