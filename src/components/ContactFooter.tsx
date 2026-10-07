@@ -21,11 +21,6 @@ export default function ContactFooter() {
             slu@slupark.com
           </button>
         </div>
-        <div className="mt-2">
-          <button onClick={() => copyToClipboard("+821045871127")} className="text-blue-400 underline font-mono">
-            +821045871127
-          </button>
-        </div>
       </div>
     </div>
   );
