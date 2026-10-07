@@ -80,7 +80,7 @@ const jsonLd = {
       alternateName: ["Slu Park", "slupark", "slu", "박 슬우", "Park Slu"],
       url: "https://slupark.com",
       image: "https://slupark.com/images/front.png",
-      email: "mailto:slu@kakao.com",
+      email: "mailto:slu@slupark.com",
       // 현재 활동은 여기 한 번만 적는다. 예전엔 jobTitle·description·hasOccupation으로
       // 같은 말을 세 번 했고 제목/설명까지 직함을 달고 있었다 — 구조화 데이터의 한 칸이면
       // 구글이 읽는 데 충분하고, 그 이상은 사람 눈에 '내세우는' 문서로 보인다.

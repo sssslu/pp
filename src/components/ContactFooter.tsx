@@ -17,8 +17,8 @@ export default function ContactFooter() {
       <div className="text-center py-6">
         <h2 className="text-xl font-bold text-white">{t.contact.title}</h2>
         <div className="mt-2">
-          <button onClick={() => copyToClipboard("slu@kakao.com")} className="text-blue-400 underline font-mono">
-            slu@kakao.com
+          <button onClick={() => copyToClipboard("slu@slupark.com")} className="text-blue-400 underline font-mono">
+            slu@slupark.com
           </button>
         </div>
         <div className="mt-2">
