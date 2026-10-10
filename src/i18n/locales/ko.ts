@@ -6,6 +6,9 @@ export interface EduLine5 { before: string; between: string; after: string }
 
 export interface ExpLine1 { before: string; mid1: string; mid2: string; after: string }
 
+/** 회사소개 섹션의 원칙 카드 — 제품 설명에 이미 있던 말만 올린다 */
+export interface CompanyPrinciple { title: string; body: string }
+
 /** 최상단 홍보 카드용 프로젝트 — 클릭 시 새 탭으로 url을 연다 */
 export interface FeaturedProject {
   title: string;
@@ -55,7 +58,24 @@ export type GalleryItemId =
 
 export interface Translations {
   tabs: readonly [string, string, string, string, string];
+  /** 예전 히어로 문구 — 지금은 '대표' 탭의 머리말이 쓴다 (FounderSection) */
   hero: { title: string; subtitle: string };
+  company: {
+    /** 히어로와 회사소개 섹션이 공유하는 한 줄 정의 */
+    tagline: string;
+    /** 히어로 하단의 대표 표기 — h1을 회사명이 가져간 뒤에도 이름이 보이게 둔다 */
+    founderLine: string;
+    whatTitle: string;
+    what: string;
+    principlesTitle: string;
+    principles: readonly CompanyPrinciple[];
+    bizTitle: string;
+    bizNameLabel: string;
+    bizName: string;
+    bizFounderLabel: string;
+    bizFounder: string;
+    bizContactLabel: string;
+  };
   about: {
     educationTitle: string;
     experienceTitle: string;
@@ -83,6 +103,10 @@ export interface Translations {
     dbSkill: string;
   };
   projects: {
+    /** 자체 서비스(홍보 카드) 묶음의 소제목 */
+    featuredTitle: string;
+    /** 그 밖의 작업(일반 카드) 묶음의 소제목 */
+    othersTitle: string;
     /** 홍보 카드 배지 문구 (예: "홍보") */
     featuredBadge: string;
     /** 홍보 카드 하단의 이동 유도 문구 (예: "방문하기") */
@@ -119,11 +143,40 @@ export interface Translations {
 }
 
 export const ko: Translations = {
-  tabs: ["소개", "능력치!", "프로젝트", "취미", "갤러리"],
+  tabs: ["회사소개", "서비스", "역량", "대표", "갤러리"],
 
   hero: {
     title: "Profile : 박 슬우",
     subtitle: "주의 : 이 사람은 심심합니다",
+  },
+
+  company: {
+    tagline: "웹과 앱 유틸리티를 직접 만들고 운영하는 1인 소프트웨어 스튜디오",
+    founderLine: "대표 박슬우 (Slu Park)",
+    whatTitle: "무엇을 하는가",
+    what:
+      "기획, 설계, 개발, 배포, 운영을 한 사람이 끝까지 가져갑니다. 외주로 남의 제품을 만드는 대신 직접 쓰고 싶은 도구를 만들어 내놓고 계속 고쳐 나갑니다. FreeHWP, everLae Note, 랠리마스터, WinPiano가 그렇게 나왔습니다.",
+    principlesTitle: "원칙",
+    principles: [
+      {
+        title: "구독제를 강요하지 않습니다",
+        body: "everLae Note는 광고도, 결제도, 한도도 없습니다. 요즘 만연한 구독제에 화가 나서 만든 제품입니다.",
+      },
+      {
+        title: "기능보다 단순함이 먼저입니다",
+        body: "애벌레노트는 에버노트의 복잡함을 비판하며 설계했습니다. 설명서를 읽어야 하는 도구는 실패한 도구입니다.",
+      },
+      {
+        title: "내놓은 것은 계속 고칩니다",
+        body: "출시가 끝이 아닙니다. 쓰는 사람이 있는 동안에는 유지보수가 제품의 일부입니다.",
+      },
+    ],
+    bizTitle: "사업자",
+    bizNameLabel: "상호",
+    bizName: "슬루컴패니 (SluCompany)",
+    bizFounderLabel: "대표",
+    bizFounder: "박슬우 (Slu Park)",
+    bizContactLabel: "문의",
   },
 
   about: {
@@ -155,6 +208,8 @@ export const ko: Translations = {
   },
 
   projects: {
+    featuredTitle: "자체 서비스",
+    othersTitle: "그 밖의 작업",
     featuredBadge: "한번 써보세요!",
     visit: "방문하기",
     featured: [

@@ -7,7 +7,7 @@
  */
 import type { Translations } from "@/i18n/locales/ko";
 
-export type SectionId = "about" | "perk" | "projects" | "hobby" | "gallery";
+export type SectionId = "company" | "services" | "perk" | "founder" | "gallery";
 
 export interface SectionDef {
   id: SectionId;
@@ -22,10 +22,10 @@ export interface SectionDef {
 type SameLengthAs<T extends readonly unknown[], V> = { [K in keyof T]: V };
 
 export const SECTIONS: SameLengthAs<Translations["tabs"], SectionDef> = [
-  { id: "about",    framed: true  },
+  { id: "company",  framed: true  },
+  { id: "services", framed: true  },
   { id: "perk",     framed: true  },
-  { id: "projects", framed: true  },
-  { id: "hobby",    framed: true  },
+  { id: "founder",  framed: true  },
   { id: "gallery",  framed: false },
 ];
 

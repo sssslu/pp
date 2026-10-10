@@ -1,11 +1,40 @@
 import type { Translations } from "./ko";
 
 export const en: Translations = {
-  tabs: ["About", "Stats!", "Projects", "Hobbies", "Gallery"],
+  tabs: ["Company", "Services", "Capabilities", "Founder", "Gallery"],
 
   hero: {
     title: "Profile : Slu Park",
     subtitle: "Caution : This person is bored",
+  },
+
+  company: {
+    tagline: "A one-person software studio building and running its own web and app utilities",
+    founderLine: "Founder — Slu Park (박슬우)",
+    whatTitle: "What we do",
+    what:
+      "Planning, design, development, release, and operations are all carried end to end by one person. Instead of building other people's products on contract, we build the tools we want to use, ship them, and keep fixing them. FreeHWP, everLae Note, RallyMaster, and WinPiano all came out of that.",
+    principlesTitle: "Principles",
+    principles: [
+      {
+        title: "No forced subscriptions",
+        body: "everLae Note has no ads, no payments, and no limits. It was built out of frustration with today's subscription-everything trend.",
+      },
+      {
+        title: "Simplicity before features",
+        body: "Everlae Note was designed as a critique of Evernote's complexity. A tool that needs a manual is a failed tool.",
+      },
+      {
+        title: "What we ship, we keep fixing",
+        body: "Shipping is not the end. As long as someone is using it, maintenance is part of the product.",
+      },
+    ],
+    bizTitle: "Business",
+    bizNameLabel: "Name",
+    bizName: "SluCompany (슬루컴패니)",
+    bizFounderLabel: "Founder",
+    bizFounder: "Slu Park (박슬우)",
+    bizContactLabel: "Contact",
   },
 
   about: {
@@ -38,6 +67,8 @@ export const en: Translations = {
   },
 
   projects: {
+    featuredTitle: "Our Services",
+    othersTitle: "Other Work",
     featuredBadge: "FEATURED",
     visit: "Visit",
     featured: [

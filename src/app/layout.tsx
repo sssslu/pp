@@ -14,12 +14,13 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://slupark.com"),
-  title: "박슬우 (Slu Park) | slupark — Portfolio",
+  title: "박슬우 (Slu Park) | 슬루컴패니 SluCompany",
   description:
-    "박슬우(Slu Park)의 개인 포트폴리오 slupark.com — 프로젝트, 경력, 취미를 소개합니다. 슬루컴패니(SluCompany)를 운영합니다. Personal portfolio of Slu Park (slupark, slu): projects, career, and hobbies.",
+    "슬루컴패니(SluCompany) — 웹과 앱 유틸리티를 직접 만들고 운영하는 1인 소프트웨어 스튜디오입니다. 대표 박슬우(Slu Park). FreeHWP, everLae Note, 랠리마스터, WinPiano. SluCompany is a one-person software studio building and running its own web and app utilities, founded by Slu Park (slupark, slu).",
   keywords: [
     "박슬우", "박 슬우", "슬우", "Slu Park", "slupark", "slu",
     "슬루컴패니", "SluCompany", "slucompany", "Slu Company",
+    "1인 소프트웨어 스튜디오", "software studio",
     "AI Quant",
     "포트폴리오", "portfolio",
   ],
@@ -36,9 +37,9 @@ export const metadata: Metadata = {
     siteName: "slupark",
     locale: "ko_KR",
     alternateLocale: "en_US",
-    title: "박슬우 (Slu Park) | slupark — Portfolio",
+    title: "박슬우 (Slu Park) | 슬루컴패니 SluCompany",
     description:
-      "박슬우(Slu Park) · 슬루컴패니(SluCompany)의 개인 포트폴리오 — 프로젝트, 경력, 취미. Personal portfolio of Slu Park.",
+      "슬루컴패니(SluCompany) — 웹과 앱 유틸리티를 직접 만들고 운영하는 1인 소프트웨어 스튜디오. 대표 박슬우(Slu Park). A one-person software studio by Slu Park.",
     url: "https://slupark.com",
     images: [
       {
@@ -51,9 +52,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "박슬우 (Slu Park) | slupark — Portfolio",
+    title: "박슬우 (Slu Park) | 슬루컴패니 SluCompany",
     description:
-      "박슬우(Slu Park) · 슬루컴패니(SluCompany)의 개인 포트폴리오 — 프로젝트, 경력, 취미. Personal portfolio of Slu Park.",
+      "슬루컴패니(SluCompany) — 웹과 앱 유틸리티를 직접 만들고 운영하는 1인 소프트웨어 스튜디오. 대표 박슬우(Slu Park). A one-person software studio by Slu Park.",
     images: ["https://slupark.com/images/front.png"],
   },
   robots: {
@@ -109,6 +110,8 @@ const jsonLd = {
       name: "SluCompany",
       alternateName: ["슬루컴패니", "slucompany", "Slu Company"],
       url: "https://slupark.com",
+      description:
+        "웹과 앱 유틸리티를 직접 만들고 운영하는 1인 소프트웨어 스튜디오. A one-person software studio building and running its own web and app utilities.",
       founder: { "@id": "https://slupark.com/#person" },
     },
     {
@@ -124,7 +127,7 @@ const jsonLd = {
       "@id": "https://slupark.com/#website",
       url: "https://slupark.com",
       name: "slupark",
-      alternateName: ["박슬우 포트폴리오", "Slu Park Portfolio"],
+      alternateName: ["슬루컴패니", "SluCompany", "박슬우", "Slu Park"],
       inLanguage: ["ko", "en"],
       about: { "@id": "https://slupark.com/#person" },
       publisher: { "@id": "https://slupark.com/#person" },

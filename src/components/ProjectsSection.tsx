@@ -3,7 +3,6 @@
 import { motion, useMotionTemplate, useMotionValue } from "framer-motion";
 import { MouseEvent, TouchEvent } from "react";
 import { useLanguage } from "@/i18n";
-import SluBrand from "./SluBrand";
 
 interface ProjectsSectionProps {
   /** 홍보 카드로 외부 사이트를 열기 직전 호출 — BGM을 꺼서 소리가 겹치지 않게 한다 */
@@ -43,17 +42,14 @@ export default function ProjectsSection({ onExternalNav }: ProjectsSectionProps)
         className="pointer-events-none absolute -inset-px rounded-xl opacity-0 group-hover:opacity-100 transition duration-300 z-20"
         style={{ background: spotlightBackground }}
       />
-      {/* 카드 묶음의 머리 — 이 프로젝트들을 누가 만들었는지 밝히는 자리.
-          아래 얇은 선까지가 한 덩어리로 읽히게 두었다. */}
-      <div className="relative z-10 mb-5 flex flex-col items-center">
-        <SluBrand variant="lockup" size={62} />
-        <p className="mt-3 text-[11px] font-medium tracking-[0.18em] text-gray-500">
-          사업자 : 슬루컴패니 (SluCompany)
-        </p>
-        <div className="mt-4 h-px w-full max-w-xs bg-gradient-to-r from-transparent via-gray-700 to-transparent" />
-      </div>
+      {/* 브랜드 락업은 히어로와 회사소개 탭이 맡는다 — 여기서 또 세우면 세 번째다.
+          대신 두 묶음에 소제목을 줘서 '자체 서비스'와 '그 밖의 작업'이 갈린다는 사실을
+          마크업에 남긴다. 예전엔 카드가 위계 없이 쏟아져 프로젝트 덩어리로만 읽혔다. */}
+      <h2 className="relative z-10 mb-3 text-xl font-bold text-white">
+        {t.projects.featuredTitle}
+      </h2>
       {/* 홍보 카드: 최상단에서 눈에 띄게 — 그라디언트 테두리 + 배지 + 호버 광택, 클릭 시 새 탭 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 relative z-10 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 relative z-10 mb-6">
         {t.projects.featured.map((p) => (
           <a
             key={p.title}
@@ -89,6 +85,9 @@ export default function ProjectsSection({ onExternalNav }: ProjectsSectionProps)
         ))}
       </div>
 
+      <h2 className="relative z-10 mb-3 text-xl font-bold text-white">
+        {t.projects.othersTitle}
+      </h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 relative z-10">
         {titles.map((title) => (
           <div key={title} className="text-glow-none bg-gray-900/90 border border-gray-800 rounded p-3 relative overflow-hidden group/card hover:border-cyan-500/50 transition-all duration-300 hover:shadow-[0_0_15px_rgba(6,182,212,0.3)] backdrop-blur-sm">

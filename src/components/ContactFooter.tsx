@@ -21,6 +21,11 @@ export default function ContactFooter() {
             slu@slupark.com
           </button>
         </div>
+        {/* 사업자 한 줄 — 푸터는 사업자 정보가 놓이는 관습적인 자리고,
+            모든 액자 섹션 아래에 깔리므로 'SluCompany'가 어느 탭에서나 본문에 남는다 */}
+        <p className="mt-4 text-[11px] tracking-[0.14em] text-gray-500">
+          {t.company.bizName} · {t.company.bizFounder}
+        </p>
       </div>
     </div>
   );

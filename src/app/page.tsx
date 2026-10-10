@@ -14,10 +14,10 @@ import { SECTIONS, SECTION_PANEL_ID, type SectionId } from "@/lib/sections";
 // 전부 정적 import다. dynamic(ssr:false)이던 시절엔 프리렌더 HTML의 가시 텍스트가
 // 56자(언어 스위처 + 프로필 두 줄 + 탭 이름 다섯)뿐이었고 <a>도 <h2>도 0개였다 —
 // 구글이 읽을 본문이 한 글자도 없었다는 뜻이다.
-import AboutSection    from "@/components/AboutSection";
+import CompanySection  from "@/components/CompanySection";
 import PerkSection     from "@/components/PerkSection";
 import ProjectsSection from "@/components/ProjectsSection";
-import HobbySection    from "@/components/HobbySection";
+import FounderSection  from "@/components/FounderSection";
 import GallerySection  from "@/components/GallerySection";
 import ContactFooter   from "@/components/ContactFooter";
 
@@ -419,10 +419,10 @@ function HomeInner() {
   // (볼륨 버튼, 힌트 등) 다섯 섹션 서브트리가 통째로 재조정되지 않게 한다.
   // 언어 전환은 컨텍스트라 그대로 전파된다.
   const sectionNodes = useMemo<Record<SectionId, ReactNode>>(() => ({
-    about:    <AboutSection />,
+    company:  <CompanySection />,
+    services: <ProjectsSection onExternalNav={muteForExternalNav} />,
     perk:     <PerkSection />,
-    projects: <ProjectsSection onExternalNav={muteForExternalNav} />,
-    hobby:    <HobbySection />,
+    founder:  <FounderSection />,
     gallery:  <GallerySection />,
   }), [muteForExternalNav]);
 
