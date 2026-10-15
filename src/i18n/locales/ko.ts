@@ -114,10 +114,6 @@ export interface Translations {
     /** 고래 사진 img alt */
     photoAlt: string;
   };
-  contact: {
-    title: string;
-    copiedPrefix: string;
-  };
   gallery: {
     title: string;
     /** 카테고리 격자로 돌아가는 버튼 문구 (화살표 기호는 코드에 남는다) */
@@ -266,11 +262,6 @@ export const ko: Translations = {
     diverLabel: "me!",
     whaleLabel: "향유고래",
     photoAlt: "향유고래와 나란히 유영하는 프리다이버(본인) — 수중에서 촬영",
-  },
-
-  contact: {
-    title: "Contact",
-    copiedPrefix: "Contact Copied! : ",
   },
 
   gallery: {

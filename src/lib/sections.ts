@@ -12,7 +12,7 @@ export type SectionId = "company" | "services" | "perk" | "founder" | "gallery";
 export interface SectionDef {
   id: SectionId;
   /**
-   * 섹션 바깥 '액자'를 두를지 여부. false면 상단 페이드 마스크·ContactFooter·조회수를
+   * 섹션 바깥 '액자'를 두를지 여부. false면 상단 페이드 마스크·조회수를
    * 모두 생략한다 — 갤러리는 자체 그리드와 라이트박스로 화면을 꽉 채우기 때문.
    */
   framed: boolean;

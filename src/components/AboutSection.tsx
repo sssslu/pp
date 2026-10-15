@@ -3,6 +3,7 @@
 import { useState, createContext, useContext } from "react";
 import Image from "next/image";
 import { useLanguage } from "@/i18n";
+import Hairline from "./Hairline";
 
 const RevealContext = createContext<{ isRevealed: boolean; reveal: () => void } | null>(null);
 
@@ -102,6 +103,35 @@ function RedactedImageLink({
   );
 }
 
+/**
+ * 경력 한 줄 — 연도 칸과 내용 칸.
+ * items-baseline이라 연도가 내용의 첫 줄과 같은 기준선에 앉고, 내용이 길어 줄이
+ * 바뀌어도 둘째 줄은 연도 칸 오른쪽에서 이어진다(예전엔 하이픈 밑으로 떨어졌다).
+ */
+function CareerRow({ year, children }: { year: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline gap-4 py-2.5">
+      <dt className="w-14 shrink-0 font-mono text-sm tabular-nums text-cyan-300/70 text-glow-none">
+        {year}
+      </dt>
+      <dd className="min-w-0 text-gray-300 leading-relaxed">{children}</dd>
+    </div>
+  );
+}
+
+/**
+ * 경험 한 항목 — 머리에 HobbySection DiveLog와 같은 눈금 틱을 단다.
+ * 탭 안의 목록이 전부 같은 표시(틱)를 쓰게 해서 한 문법으로 읽히게 한다.
+ */
+function ExpItem({ children }: { children: React.ReactNode }) {
+  return (
+    <li className="relative pl-5 text-gray-300 leading-relaxed">
+      <span aria-hidden className="absolute left-0 top-[0.85em] h-px w-2.5 bg-cyan-400/50" />
+      {children}
+    </li>
+  );
+}
+
 /*
  * 본문을 t.about.edu / t.about.exp 슬롯이 아니라 로케일별 JSX로 직접 쓴다.
  * 리댁션 조각이 문장 중간에 박혀 있어 마크업과 번역문이 한 덩어리인 탓도 있지만,
@@ -111,85 +141,89 @@ function RedactedImageLink({
  *  - exp: line1~3, line5, line6은 화면과 정확히 일치하지만 line4는 대응하는 줄이 없다.
  * 그대로 갈아끼우면 보이는 이력이 조용히 바뀐다 — 이력은 조용히 바뀌면 안 된다.
  * 로케일 슬롯을 화면과 일치시키기 전까진 이 파일이 원본이다. 문구 수정은 여기서.
+ *
+ * 배치: 경력은 연도 칸 + 줄 헤어라인(dl), 경험은 눈금 목록(ul). 예전엔 '- 2012~'처럼
+ * 하이픈과 연도를 문장 속에 박아 넣어 연도로 훑을 수가 없었고, 모바일에서 줄이 바뀌면
+ * 둘째 줄이 하이픈 밑으로 떨어졌다. 문구는 그대로 두고 하이픈만 빼 연도를 칸으로 옮겼다.
  */
 export default function AboutSection() {
   const { t, locale } = useLanguage();
   const isEn = locale === "en";
   return (
-    <div className="w-full">
-      <div className="max-w-3xl mx-auto px-8 py-4">
-        <div className="py-4">
-          <h2 className="text-xl font-bold text-white">{t.about.educationTitle}</h2>
-          <div className="mt-2 flex flex-col items-start gap-1 text-gray-300">
-            <RevealGroup>
+    <div className="max-w-3xl mx-auto px-6 sm:px-8">
+      <section className="py-8">
+        <h2 className="text-xl font-bold text-white">{t.about.educationTitle}</h2>
+        {/* RevealGroup은 DOM을 만들지 않는다 — 행이 dl의 직계 자식으로 남아 divide-y가 먹는다 */}
+        <dl className="mt-3 divide-y divide-gray-800/70">
+          <RevealGroup>
+            <CareerRow year="2012~">
+              {isEn ? (
+                <>Active in <RedactedItem text="Changwonnam High Single Crystal Research Club" /></>
+              ) : (
+                <><RedactedItem text="창원남고 단결정 연구 동아리" /> 활동</>
+              )}
+            </CareerRow>
+            <CareerRow year="2015~">
+              {isEn ? (
+                <>Graduated from <RedactedItem text="Seoul National University of Science and Technology" /> — <RedactedItem text="Electronic IT Media Engineering" /></>
+              ) : (
+                <><RedactedItem text="서울과학기술대학교" /> <RedactedItem text="전자IT미디어공학과" /> 졸업</>
+              )}
+            </CareerRow>
+          </RevealGroup>
+          <RevealGroup>
+            <CareerRow year="2016~">
+              {isEn ? (
+                <><RedactedItem text="Yongsan KATUSA" /> <RedactedItem text="Military Police" /> — Honorably discharged</>
+              ) : (
+                <><RedactedItem text="용산 KATUSA" /><RedactedItem text="Military Police" /> 만기 전역</>
+              )}
+            </CareerRow>
+          </RevealGroup>
+          <RevealGroup>
+            <CareerRow year="2021~">
+              {isEn ? (
+                <><RedactedItem text="TaehwaInnovation" /> <RedactedItem text="R&D Software Lab" /> — Researcher</>
+              ) : (
+                <><RedactedItem text="태화이노베이션" /> <RedactedItem text="R&D 소프트웨어 연구소" /> 연구원</>
+              )}
+            </CareerRow>
+            <CareerRow year="2022~">
+              {isEn ? (
+                <>Worked at <RedactedItem text="Singapore crypto exchange Bitget" /> in a <RedactedItem text="commission-based role" /></>
+              ) : (
+                <><RedactedItem text="싱가폴 암호화폐 거래소 Bitget" /> 에서 <RedactedItem text="커미션직" />으로 근무</>
+              )}
+            </CareerRow>
+            <CareerRow year="2025~">
+              <RedactedItem text="AI Quant" />
+            </CareerRow>
+          </RevealGroup>
+        </dl>
+      </section>
+
+      <Hairline />
+
+      <section className="py-8">
+        <h2 className="text-xl font-bold text-white">{t.about.experienceTitle}</h2>
+        <ul className="mt-3 flex flex-col gap-3">
+          <RevealGroup>
+            <ExpItem>
               <p>
                 {isEn ? (
-                  <>- 2012~ Active in <RedactedItem text="Changwonnam High Single Crystal Research Club" /></>
+                  <>Used <RedactedItem text="various LLM APIs" /> and automation systems to build and operate a <RedactedItem text="real trading system" />. <RedactedItem text="(Sold a course too!)" /></>
                 ) : (
-                  <>- 2012~<RedactedItem text="창원남고 단결정 연구 동아리" /> 활동 </>
+                  <><RedactedItem text="각종 LLM API" />, 자동화 시스템을 활용해 <RedactedItem text="실제 트레이딩 시스템" />을 구현하고 운영한 경험이 있습니다. <RedactedItem text="(강의도 팔았습니다)" /></>
                 )}
               </p>
-              <p>
-                {isEn ? (
-                  <>- 2015~ Graduated from <RedactedItem text="Seoul National University of Science and Technology" /> — <RedactedItem text="Electronic IT Media Engineering" /></>
-                ) : (
-                  <>- 2015~<RedactedItem text="서울과학기술대학교" /> <RedactedItem text="전자IT미디어공학과" /> 졸업</>
-                )}
-              </p>
-            </RevealGroup>
-            <RevealGroup>
-              <p>
-                {isEn ? (
-                  <>- 2016~ <RedactedItem text="Yongsan KATUSA" /> <RedactedItem text="Military Police" /> — Honorably discharged</>
-                ) : (
-                  <>- 2016~<RedactedItem text="용산 KATUSA" /><RedactedItem text="Military Police" /> 만기 전역</>
-                )}
-              </p>
-            </RevealGroup>
-            <RevealGroup>
-              <p>
-                {isEn ? (
-                  <>- 2021~ <RedactedItem text="TaehwaInnovation" /> <RedactedItem text="R&D Software Lab" /> — Researcher</>
-                ) : (
-                  <>- 2021~<RedactedItem text="태화이노베이션" /> <RedactedItem text="R&D 소프트웨어 연구소" /> 연구원</>
-                )}
-              </p>
-              <p>
-                {isEn ? (
-                  <>- 2022~ Worked at <RedactedItem text="Singapore crypto exchange Bitget" /> in a <RedactedItem text="commission-based role" /></>
-                ) : (
-                  <>- 2022~<RedactedItem text="싱가폴 암호화폐 거래소 Bitget" /> 에서 <RedactedItem text="커미션직" />으로 근무</>
-                )}
-              </p>
-              <p>
-                {isEn ? (
-                  <>- 2025~ <RedactedItem text="AI Quant" /></>
-                ) : (
-                  <>- 2025~<RedactedItem text="AI Quant" /></>
-                )}
-              </p>
-            </RevealGroup>
-          </div>
-        </div>
-        <div className="py-6">
-          <h2 className="text-xl font-bold text-white">{t.about.experienceTitle}</h2>
-          <div className="mt-2 flex flex-col items-start gap-1 text-gray-300">
-            <RevealGroup>
-              <div>
-                <p>
-                  {isEn ? (
-                    <>- Used <RedactedItem text="various LLM APIs" /> and automation systems to build and operate a <RedactedItem text="real trading system" />. <RedactedItem text="(Sold a course too!)" /></>
-                  ) : (
-                    <>- <RedactedItem text="각종 LLM API" />, 자동화 시스템을 활용해 <RedactedItem text="실제 트레이딩 시스템" />을 구현하고 운영한 경험이 있습니다. <RedactedItem text="(강의도 팔았습니다)" /></>
-                  )}
-                </p>
-              <div className="flex flex-col items-start ml-10 mt-1">
+              {/* 틱 들여쓰기(pl-5)만큼 ml을 줄여 화살표·카드의 절대 위치는 예전 그대로 둔다 */}
+              <div className="flex flex-col items-start ml-5 mt-1">
                 <svg aria-hidden width="70" height="70" viewBox="0 0 100 100" className="ml-36 -mt-2 text-red-500 fill-none stroke-current stroke-[3px] drop-shadow-lg transform -rotate-12">
                   <path d="M 10 10 C 40 10 50 35 35 55 S 40 90 80 90" strokeLinecap="round" />
                 </svg>
                 <RedactedImageLink
                   href="https://www.inflearn.com/course/gpt-bitget-api%EB%A1%9C-%EB%A7%8C%EB%93%9C%EB%8A%94?cid=337404"
-                  linkClassName="relative ml-24 mb-12 transform hover:scale-105 transition-all duration-300 border-4 border-white rounded-lg shadow-2xl overflow-hidden block"
+                  linkClassName="relative ml-24 mb-4 transform hover:scale-105 transition-all duration-300 border-4 border-white rounded-lg shadow-2xl overflow-hidden block"
                   src="/images/인프런인증.png"
                   alt="Inflearn certification"
                   width={300}
@@ -197,44 +231,43 @@ export default function AboutSection() {
                   imageClassName="object-cover"
                 />
               </div>
-              </div>
-            </RevealGroup>
-            <RevealGroup>
-              <p>
-                {isEn
-                  ? "- Designed and deployed mobile apps for iOS and Android."
-                  : "- iOS 및 Android용 모바일 앱을 설계하고 배포한 경험이 있습니다."}
-              </p>
-            </RevealGroup>
-            <RevealGroup>
-              <p>
-                {isEn ? (
-                  <>- Maintained <RedactedItem text="Woori Bank" />&apos;s library program <RedactedItem text="Fever" /> and <RedactedItem text="NongHyup Bank" />&apos;s high-speed scanning program <RedactedItem text="DASS" />.</>
-                ) : (
-                  <>- <RedactedItem text="우리은행" /> 사서 프로그램 <RedactedItem text="Fever" /> 와 <RedactedItem text="농협은행" /> 고속 스캔 프로그램 <RedactedItem text="DASS" /> 를 유지보수한 경험이 있습니다.</>
-                )}
-              </p>
-
-            </RevealGroup>
-            <RevealGroup>
-              <p>
-                {isEn ? (
-                  <>- Performed <RedactedItem text="core duties" /> at a <RedactedItem text="major crypto exchange" /> under <RedactedItem text="high commissions" />.</>
-                ) : (
-                  <>- <RedactedItem text="대형 암호화폐 거래소" />에서 <RedactedItem text="고액의 커미션" />을 받고 <RedactedItem text="핵심 업무" />를 수행한 경험이 있습니다.</>
-                )}
-              </p>
-            </RevealGroup>
-            <RevealGroup>
-              <div className="flex items-center">
+            </ExpItem>
+          </RevealGroup>
+          <ExpItem>
+            {isEn
+              ? "Designed and deployed mobile apps for iOS and Android."
+              : "iOS 및 Android용 모바일 앱을 설계하고 배포한 경험이 있습니다."}
+          </ExpItem>
+          <RevealGroup>
+            <ExpItem>
+              {isEn ? (
+                <>Maintained <RedactedItem text="Woori Bank" />&apos;s library program <RedactedItem text="Fever" /> and <RedactedItem text="NongHyup Bank" />&apos;s high-speed scanning program <RedactedItem text="DASS" />.</>
+              ) : (
+                <><RedactedItem text="우리은행" /> 사서 프로그램 <RedactedItem text="Fever" /> 와 <RedactedItem text="농협은행" /> 고속 스캔 프로그램 <RedactedItem text="DASS" /> 를 유지보수한 경험이 있습니다.</>
+              )}
+            </ExpItem>
+          </RevealGroup>
+          <RevealGroup>
+            <ExpItem>
+              {isEn ? (
+                <>Performed <RedactedItem text="core duties" /> at a <RedactedItem text="major crypto exchange" /> under <RedactedItem text="high commissions" />.</>
+              ) : (
+                <><RedactedItem text="대형 암호화폐 거래소" />에서 <RedactedItem text="고액의 커미션" />을 받고 <RedactedItem text="핵심 업무" />를 수행한 경험이 있습니다.</>
+              )}
+            </ExpItem>
+          </RevealGroup>
+          <RevealGroup>
+            <ExpItem>
+              {/* items-start: 가운데 정렬이면 글이 썸네일 높이의 중간으로 내려가 틱과 어긋난다 */}
+              <div className="flex items-start">
                 <p>
                   {isEn ? (
-                    <>- Worked as a <RedactedItem text="Science YouTuber" />!</>
+                    <>Worked as a <RedactedItem text="Science YouTuber" />!</>
                   ) : (
-                    <>- <RedactedItem text="과학 유투버" />로 활동한 경험이 있습니다!</>
+                    <><RedactedItem text="과학 유투버" />로 활동한 경험이 있습니다!</>
                   )}
                 </p>
-                <div className="flex items-center ml-2">
+                <div className="flex shrink-0 items-center ml-2 mt-0.5">
                   <svg aria-hidden width="50" height="20" viewBox="0 0 50 20" className="text-red-500 fill-none stroke-current stroke-[3px] drop-shadow-lg">
                     <path d="M 5 10 Q 15 0 25 10 T 45 10" strokeLinecap="round" />
                   </svg>
@@ -249,10 +282,10 @@ export default function AboutSection() {
                   />
                 </div>
               </div>
-            </RevealGroup>
-          </div>
-        </div>
-      </div>
+            </ExpItem>
+          </RevealGroup>
+        </ul>
+      </section>
     </div>
   );
 }

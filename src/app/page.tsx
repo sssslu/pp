@@ -19,7 +19,6 @@ import PerkSection     from "@/components/PerkSection";
 import ProjectsSection from "@/components/ProjectsSection";
 import FounderSection  from "@/components/FounderSection";
 import GallerySection  from "@/components/GallerySection";
-import ContactFooter   from "@/components/ContactFooter";
 
 const VOLUME_BTN: Record<VolumeState, string> = {
   full: "bg-cyan-900/20 border-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.5)] hover:shadow-[0_0_30px_rgba(34,211,238,0.8)]",
@@ -609,11 +608,10 @@ function HomeInner() {
                 {sectionNodes[section.id]}
               </div>
             ))}
-            {/* 연락처·조회수는 예전과 똑같이 '섹션이 실제로 열려 있고 액자가 있을 때'만
-                렌더한다 — 대기 상태까지 넣으면 전화번호가 정적 HTML에 새로 노출된다 */}
-            {shown !== null && framed && <ContactFooter />}
+            {/* 조회수는 '섹션이 실제로 열려 있고 액자가 있을 때'만 렌더한다.
+                연락처 푸터는 뺐다 — 이메일·사업자 정보는 회사소개 탭에 이미 있다 */}
             {shown !== null && framed && viewCount !== -1 && (
-              <div className="w-full py-4 text-center">
+              <div className="w-full pt-8 pb-4 text-center">
                 <p className="text-gray-400 text-sm">Total {viewCount} views</p>
               </div>
             )}

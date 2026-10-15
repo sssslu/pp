@@ -138,11 +138,6 @@ having certified 100+ Korean and foreign students.
     photoAlt: "A freediver (me) swimming alongside a sperm whale — shot underwater",
   },
 
-  contact: {
-    title: "Contact",
-    copiedPrefix: "Contact Copied! : ",
-  },
-
   gallery: {
     title: "Gallery",
     back: "Back",

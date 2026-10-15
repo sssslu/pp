@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion, type Variants } from "framer-motion";
 import { useLanguage } from "@/i18n";
+import Hairline from "./Hairline";
 import { dispatchRipple } from "@/lib/ascii/events";
 
 /*
@@ -658,12 +659,12 @@ export default function HobbySection() {
   const { t } = useLanguage();
   return (
     <div className="w-full">
-      <div className="max-w-3xl mx-auto px-8 py-4">
-        <div className="pt-2">
+      <div className="max-w-3xl mx-auto px-6 sm:px-8">
+        <div className="pt-8">
           <SonarFrame />
         </div>
 
-        <div className="pt-8 pb-4">
+        <div className="pt-8 pb-8">
           <p className="font-mono text-[11px] tracking-[0.25em] text-cyan-300/60 select-none text-glow-none">
             {"// DIVE_LOG"}
           </p>
@@ -671,11 +672,15 @@ export default function HobbySection() {
           <DiveLog content={t.hobby.freedivingContent} />
         </div>
 
-        <div className="py-6">
+        {/* 프리다이빙 → 아트로 주제가 바뀌는 자리. 고래 사진은 프리다이빙의 삽화라
+            그 사이엔 선을 긋지 않는다 */}
+        <Hairline />
+
+        <div className="py-8">
           <p className="font-mono text-[11px] text-cyan-300/60 select-none text-glow-none">
             {"> ls ./artworks --self-claimed"}
           </p>
-          <h2 className="mt-1 text-2xl font-bold text-white">{t.hobby.artTitle}</h2>
+          <h2 className="mt-1 text-xl font-bold text-white">{t.hobby.artTitle}</h2>
           {/* 농담은 맨몸일 때 가장 잘 터진다 — 장식 없이 그대로 */}
           <p className="mt-2 text-gray-300">{t.hobby.artContent}</p>
         </div>
